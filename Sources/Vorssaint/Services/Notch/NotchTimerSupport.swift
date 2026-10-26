@@ -11,13 +11,13 @@ enum NotchTimerPhase: String { case timer, focus, shortBreak, longBreak, stopwat
 enum NotchTimerRulerScale {
     static let spacing = 14.0
 
-    static func moving(_ value: Double, by points: Double) -> Double {
-        guard value.isFinite, points.isFinite else { return 1 }
-        return min(180, max(1, value - points / spacing))
+    static func moving(_ value: Double, by points: Double, in range: ClosedRange<Int> = 1...180) -> Double {
+        guard value.isFinite, points.isFinite else { return Double(range.lowerBound) }
+        return min(Double(range.upperBound), max(Double(range.lowerBound), value - points / spacing))
     }
 
-    static func minute(_ value: Double) -> Int {
-        Int(moving(value, by: 0).rounded())
+    static func minute(_ value: Double, in range: ClosedRange<Int> = 1...180) -> Int {
+        Int(moving(value, by: 0, in: range).rounded())
     }
 
     static func offset(of minute: Int, selected: Int) -> Double {

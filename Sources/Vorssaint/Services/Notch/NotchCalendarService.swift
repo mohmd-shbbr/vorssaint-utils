@@ -6,14 +6,14 @@ import Combine
 import EventKit
 
 /// EventKit objects stay on one actor; only immutable display values reach UI.
-private actor NotchCalendarReader {
+actor NotchCalendarReader {
     private lazy var store = EKEventStore()
 
-    func read(interval: DateInterval, excluded: Set<String>) -> [NotchCalendarEvent] {
+    func read(interval: DateInterval, excluded: Set<String>, selected: Set<String>? = nil) -> [NotchCalendarEvent] {
         guard !Task.isCancelled, EKEventStore.authorizationStatus(for: .event) == .fullAccess else { return [] }
-        let calendars = NotchCalendarSupport.calendarsToRead(store.calendars(for: .event), excluded: excluded,
-                                                             identifier: \.calendarIdentifier)
-        if calendars?.isEmpty == true { return [] }
+        let calendars = CalendarSelectionSupport.filtering(store.calendars(for: .event), selected: selected,
+                                                           excluded: excluded, identifier: \.calendarIdentifier)
+        if calendars.isEmpty { return [] }
         let predicate = store.predicateForEvents(withStart: interval.start, end: interval.end, calendars: calendars)
         return store.events(matching: predicate).compactMap { event in
             guard event.status != .canceled,
@@ -69,6 +69,7 @@ final class NotchCalendarService: NSObject, ObservableObject {
     private var countdownEnabled = false
     private var timeLeftEnabled = false
     private var excludedCalendars = Set<String>()
+    private var selectedCalendars: Set<String>?
 
     private override init() { super.init() }
 
@@ -107,17 +108,20 @@ final class NotchCalendarService: NSObject, ObservableObject {
         let countdownEnabled = NotchCalendarSupport.showsCountdown()
         let timeLeftEnabled = NotchCalendarSupport.showsTimeLeft()
         let excludedCalendars = NotchCalendarSupport.excludedCalendars()
+        let selectedCalendars = CalendarSelectionSupport.selected()
         let chosenCountdowns = Set(NotchCalendarSupport.chosenCountdowns().keys)
         guard reader == nil else {
             if self.countdownEnabled != countdownEnabled || self.timeLeftEnabled != timeLeftEnabled
-                || self.excludedCalendars != excludedCalendars || self.chosenCountdowns != chosenCountdowns {
-                if !excludedCalendars.isSubset(of: self.excludedCalendars) {
+                || self.excludedCalendars != excludedCalendars || self.selectedCalendars != selectedCalendars
+                || self.chosenCountdowns != chosenCountdowns {
+                if !excludedCalendars.isSubset(of: self.excludedCalendars) || self.selectedCalendars != selectedCalendars {
                     events = []
                     countdown = nil
                 }
                 self.countdownEnabled = countdownEnabled
                 self.timeLeftEnabled = timeLeftEnabled
                 self.excludedCalendars = excludedCalendars
+                self.selectedCalendars = selectedCalendars
                 if self.chosenCountdowns != chosenCountdowns { self.chosenCountdowns = chosenCountdowns }
                 if let countdown, !follows(countdown) { self.countdown = nil }
                 refresh()
@@ -127,12 +131,16 @@ final class NotchCalendarService: NSObject, ObservableObject {
         self.countdownEnabled = countdownEnabled
         self.timeLeftEnabled = timeLeftEnabled
         self.excludedCalendars = excludedCalendars
+        self.selectedCalendars = selectedCalendars
         if self.chosenCountdowns != chosenCountdowns { self.chosenCountdowns = chosenCountdowns }
         reader = NotchCalendarReader()
         for name in [Notification.Name.EKEventStoreChanged, NSApplication.didBecomeActiveNotification,
-                     .NSSystemClockDidChange, .NSSystemTimeZoneDidChange, .NSCalendarDayChanged] {
+                     .NSSystemClockDidChange, .NSSystemTimeZoneDidChange, .NSCalendarDayChanged,
+                     CalendarSelectionSupport.changed] {
             observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) {
-                [weak self] _ in self?.refresh()
+                [weak self] note in
+                if note.name == CalendarSelectionSupport.changed { self?.syncWithPreferences() }
+                else { self?.refresh() }
             })
         }
         permissionSubscription = Permissions.shared.$calendarAccess.removeDuplicates().dropFirst()
@@ -157,11 +165,12 @@ final class NotchCalendarService: NSObject, ObservableObject {
             visible: interval, current: currentInterval,
             countdownEnabled: countdownEnabled || timeLeftEnabled || !chosenCountdowns.isEmpty)
         let excluded = excludedCalendars
+        let selected = selectedCalendars
         loading = events.isEmpty
         task = Task { @MainActor [weak self] in
-            let result = await reader.read(interval: interval, excluded: excluded)
+            let result = await reader.read(interval: interval, excluded: excluded, selected: selected)
             let currentResult = needsCurrentRead
-                ? await reader.read(interval: currentInterval, excluded: excluded) : result
+                ? await reader.read(interval: currentInterval, excluded: excluded, selected: selected) : result
             guard !Task.isCancelled, let self, self.generation == requested,
                   NotchCalendarSupport.isEnabled() else { return }
             let now = Date()
@@ -216,6 +225,7 @@ final class NotchCalendarService: NSObject, ObservableObject {
         countdownEnabled = false
         timeLeftEnabled = false
         excludedCalendars = []
+        selectedCalendars = nil
         if !chosenCountdowns.isEmpty { chosenCountdowns = [] }
         events = []; countdown = nil; loading = false
     }

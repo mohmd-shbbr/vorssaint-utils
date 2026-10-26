@@ -58,6 +58,7 @@ jobs:
         if: steps.merge.outputs.changed == 'true' || github.event_name != 'schedule'
         run: |
           python3 Tests/PersonalUpdaterTests.py
+          python3 Tests/CalendarMenuBarTests.py
           ./build.sh --test
           ./build.sh
           ./build/Vorssaint --selftest

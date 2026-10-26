@@ -167,6 +167,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // One binding per feature: only available features are touched, so a
         // feature switched off in the hub never even instantiates here.
         FeatureRuntime.shared.syncAtLaunch()
+        WorldClockMenuBarService.shared.start()
+        UpcomingMeetingMenuBarService.shared.onOpenSettings = { [weak self] in
+            SettingsRouter.shared.request(FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration))
+            self?.openSettingsWindow()
+        }
+        UpcomingMeetingMenuBarService.shared.syncWithPreferences()
+        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .map { _ in
+                let defaults = UserDefaults.standard
+                return [defaults.bool(forKey: UpcomingMeetingSupport.enabledKey) ? "1" : "0",
+                        defaults.bool(forKey: UpcomingMeetingSupport.showTitleKey) ? "1" : "0",
+                        String(defaults.integer(forKey: UpcomingMeetingSupport.leadMinutesKey)),
+                        defaults.bool(forKey: CalendarSelectionSupport.configuredKey) ? "1" : "0",
+                        (defaults.stringArray(forKey: CalendarSelectionSupport.identifiersKey) ?? []).sorted().joined(separator: "|")]
+            }
+            .removeDuplicates()
+            .debounce(for: .milliseconds(200), scheduler: DispatchQueue.main)
+            .sink { _ in UpcomingMeetingMenuBarService.shared.syncWithPreferences() }
+            .store(in: &cancellables)
         if AppFeature.monitorPower.isAvailable, PowerSampler.hasInternalBattery {
             MaxCapacityProbe.shared.refreshIfStale()
         }
@@ -307,6 +326,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
+        WorldClockMenuBarService.shared.stop()
+        UpcomingMeetingMenuBarService.shared.stop()
         CommandBarService.shared.restoreBorrowedInputSource()
         if AppFeature.notch.isAvailable { NotchService.shared.stop(restoreCapture: false) }
         // Quitting properly means the start worked, whenever it happened.

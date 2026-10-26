@@ -153,6 +153,7 @@ struct NotchPagePreview: View {
     var body: some View {
         switch module {
         case .timer: NotchTimerView(size: size)
+        case .worldClock: WorldClockView(size: size)
         case .camera: camera
         // The island hands these rows their clearing from outside the page.
         case .notifications:
@@ -401,6 +402,7 @@ extension NotchModule {
         case .calendar: return .red
         case .notifications: return .orange
         case .timer: return .mint
+        case .worldClock: return .cyan
         case .camera: return .teal
         case .downloads: return .blue
         case .scratchpad: return .yellow

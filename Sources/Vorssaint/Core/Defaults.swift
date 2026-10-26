@@ -1195,6 +1195,15 @@ enum Defaults {
     static let allowedMonitorAlertCooldowns = [2, 5, 15, 30, 60]
 
     static let registeredDefaults: [String: Any] = [
+        WorldClockSupport.enabledKey: false,
+        WorldClockSupport.zonesKey: Data("[]".utf8),
+        WorldClockSupport.primaryKey: "UTC",
+        WorldClockSupport.twentyFourHourKey: true,
+        CalendarSelectionSupport.identifiersKey: [String](),
+        CalendarSelectionSupport.configuredKey: false,
+        "upcomingMeetingMenuBarEnabled": false,
+        "upcomingMeetingLeadMinutes": 1440,
+        "upcomingMeetingShowTitle": true,
         DefaultsKey.appearance: AppAppearance.fallback.rawValue,
         DefaultsKey.liquidGlassEnabled: false,
         DefaultsKey.notchLiquidGlassEnabled: false,

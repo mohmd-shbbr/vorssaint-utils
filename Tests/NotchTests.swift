@@ -2328,6 +2328,10 @@ enum NotchTests {
         defaults.set("mixer,commandBar", forKey: DefaultsKey.notchHiddenControls)
         defaults.set("", forKey: DefaultsKey.notchControlOrder)
         let allModules = NotchModule.allCases
+        suite.expect(NotchModule.worldClock.symbol == "globe" && NotchModule.worldClock.pageTop == .row,
+               "world clock has its own island page and header without using the timer")
+        suite.expect(NotchModule.worldClock.isAvailable(in: defaults),
+               "world clock is included with the core island without requiring the timer feature")
         suite.expect(Set(allModules.map(\.shortcutKey)).count == allModules.count,
                "every section has a unique direct shortcut, including destinations after the ninth")
         for module in allModules {
@@ -2511,7 +2515,7 @@ enum NotchTests {
         suite.expect(!NotchSupport.routes(.clipboard, in: defaults), "hidden module cannot leak an activity")
         defaults.set("system,music,music,unknown", forKey: DefaultsKey.notchModuleOrder)
         defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
-        suite.expect(NotchSupport.modules(in: defaults) == [.system, .music, .controls, .mixer, .captures, .files, .tools, .calendar, .notifications, .timer, .camera, .downloads, .scratchpad, .agents, .watch],
+        suite.expect(NotchSupport.modules(in: defaults) == [.system, .music, .controls, .mixer, .captures, .files, .tools, .calendar, .notifications, .timer, .worldClock, .camera, .downloads, .scratchpad, .agents, .watch],
                "module order ignores unknown ids and duplicates, preserving newly added modules")
         suite.expect(NotchSupport.routesShelf(in: defaults) && NotchSupport.revealsShelfDrag(in: defaults),
                "the enabled notch replaces the file destination and reveals active drags")

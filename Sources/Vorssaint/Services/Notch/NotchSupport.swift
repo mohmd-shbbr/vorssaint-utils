@@ -7,7 +7,7 @@ import Foundation
 import CoreGraphics
 
 enum NotchModule: String, CaseIterable, Identifiable {
-    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch
+    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, worldClock, camera, downloads, scratchpad, agents, watch
     var id: String { rawValue }
 
     var symbol: String {
@@ -18,6 +18,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .mixer: return "speaker.wave.2"
         case .music: return "music.note"
         case .timer: return "timer"
+        case .worldClock: return "globe"
         case .camera: return "web.camera"
         case .downloads: return "arrow.down.circle"
         case .notifications: return "bell"
@@ -48,6 +49,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .calendar: return "a"
         case .notifications: return "n"
         case .timer: return "r"
+        case .worldClock: return "z"
         case .camera: return "w"
         case .downloads: return "d"
         case .scratchpad: return "p"
@@ -59,6 +61,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
     func isAvailable(in defaults: UserDefaults = .standard) -> Bool {
         switch self {
         case .controls, .music: return true
+        case .worldClock: return AppFeature.notch.isAvailable(in: defaults)
         case .timer: return AppFeature.notchTimer.isAvailable(in: defaults)
         case .camera: return AppFeature.cameraPreview.isAvailable(in: defaults)
         case .downloads: return AppFeature.notchDownloads.isAvailable(in: defaults)
@@ -2776,6 +2779,8 @@ struct NotchGeometry: Equatable {
                 // Only the cards a person chose; a short set leaves a short island.
                 contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)
             // Lists and previews fill the chosen content budget.
+            case .worldClock:
+                contentHeight = min(budget, 280)
             case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch:
                 contentHeight = budget
             }

@@ -1387,6 +1387,17 @@ final class NotchService: ObservableObject {
         if opensActivity { open(module) } else { open() }
     }
 
+    /// A menu bar clock opens its own island page without changing the timer.
+    /// A hidden or disabled island leaves the caller free to show its fallback.
+    @discardableResult
+    func openWorldClock() -> Bool {
+        guard NotchSupport.isEnabled(), !suspended, NotchModule.worldClock.isAvailable() else { return false }
+        refreshModules()
+        guard modules.contains(.worldClock) else { return false }
+        open(.worldClock, pinned: true)
+        return expanded && selected == .worldClock && !showingSections && !showingAppPanel
+    }
+
     /// Opens the Calendar page scrolled to the countdown's event.
     func openCountdownEvent() {
         let calendar = NotchCalendarService.shared

@@ -478,6 +478,9 @@ struct NotchSettings: View {
             switchRow("hourglass", calendar.timeLeft, caption: calendar.timeLeftHint, isOn: $calendarTimeLeft)
             switchRow("number", calendar.weekNumbers, isOn: $calendarWeekNumbers)
             if permissions.calendarAccess == .fullAccess { NotchCalendarSelection() }
+        case .worldClock:
+            Text("Choose clocks and the menu bar timezone in Menu bar settings. Drag the time slider in the island to compare times.")
+                .font(.callout).foregroundStyle(.secondary)
         case .timer:
             let activities = FeatureStrings.notchActivities(l10n.language)
             switchRow("eye.slash", activities.hideTimerCountdown,
@@ -859,7 +862,7 @@ struct NotchSettings: View {
     /// The one feature a page needs; Captures and System accept any of several.
     private func moduleFeature(_ module: NotchModule) -> AppFeature? {
         switch module {
-        case .controls, .music, .captures, .system: return nil
+        case .controls, .music, .captures, .system, .worldClock: return nil
         case .mixer: return .mixer
         case .clipboard: return .clipboardHistory
         case .files: return .shelf

@@ -89,6 +89,7 @@ struct NotchEditorStrings {
         case .calendar: return calendarSummary
         case .notifications: return notificationsSummary
         case .timer: return timerSummary
+        case .worldClock: return "Compare your saved time zones with a shared time slider."
         case .camera: return cameraSummary
         case .downloads: return downloadsSummary
         case .scratchpad: return scratchpadSummary

@@ -479,6 +479,8 @@ struct NotchView: View {
                 hasSession: session.hasSession, height: size.height))
         case .calendar:
             size.height = max(size.height, NotchLayout.calendarMonthMinimumHeight)
+        case .worldClock:
+            size.height = max(size.height, 280)
         case .clipboard:
             // A complete card with its action row; the search is in the top row.
             size.height = max(size.height, NotchLayout.clipboardCardHeight)
@@ -570,6 +572,7 @@ struct NotchView: View {
         } else {
             switch service.selected {
             case .timer: NotchTimerView(size: pageSize)
+            case .worldClock: WorldClockView(size: pageSize)
             case .camera:
                 NotchCameraView(size: pageSize)
                     .notchBand(leading: { NotchCameraChooser() }, trailing: { NotchCameraStopButton() })
@@ -820,6 +823,7 @@ extension NotchModule: PanelOrderItem {
     func title(_ language: AppLanguage) -> String {
         switch self {
         case .timer: return FeatureStrings.notchActivities(language).timer
+        case .worldClock: return "World clock"
         case .camera: return FeatureStrings.notchActivities(language).camera
         case .notifications: return FeatureStrings.notchNotifications(language).title
         case .downloads: return FeatureStrings.notchFiles(language).downloadsTitle

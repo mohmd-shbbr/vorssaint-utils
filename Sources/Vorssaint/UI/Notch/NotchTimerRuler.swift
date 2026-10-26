@@ -9,6 +9,10 @@ struct NotchTimerRuler: NSViewRepresentable {
     @Binding var minutes: Int
     let label: String
     let locale: Locale
+    var range: ClosedRange<Int> = 1...180
+    var labelEvery = 5
+    var tickLabel: ((Int) -> String)?
+    var valueDescription: ((Int) -> String)?
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -30,11 +34,17 @@ struct NotchTimerRuler: NSViewRepresentable {
     func updateNSView(_ control: NotchTimerRulerControl, context: Context) {
         context.coordinator.parent = self
         control.durationLocale = locale
+        control.valueRange = range
+        control.minValue = Double(range.lowerBound)
+        control.maxValue = Double(range.upperBound)
+        control.labelEvery = max(1, labelEvery)
+        control.tickLabel = tickLabel
+        control.valueDescription = valueDescription
         control.synchronize(minutes: minutes)
         control.isEnabled = context.environment.isEnabled
         control.increasedContrast = context.environment.colorSchemeContrast == .increased
         control.setAccessibilityLabel(label)
-        control.setAccessibilityValueDescription(NotchTimerSupport.compactText(Double(minutes) * 60, locale: locale))
+        control.setAccessibilityValueDescription(valueDescription?(minutes) ?? NotchTimerSupport.compactText(Double(minutes) * 60, locale: locale))
         control.needsDisplay = true
     }
 
@@ -52,6 +62,10 @@ struct NotchTimerRuler: NSViewRepresentable {
 final class NotchTimerRulerControl: NSSlider {
     var increasedContrast = false
     var durationLocale = Locale.current
+    var valueRange = 1...180
+    var labelEvery = 5
+    var tickLabel: ((Int) -> String)?
+    var valueDescription: ((Int) -> String)?
     private var drag: (x: CGFloat, value: Double)?
     private var didDrag = false
     private var showsKeyboardFocus = false
@@ -60,7 +74,7 @@ final class NotchTimerRulerControl: NSSlider {
     override var acceptsFirstResponder: Bool { isEnabled }
 
     func synchronize(minutes: Int) {
-        let bounded = NotchTimerRulerScale.minute(Double(minutes))
+        let bounded = NotchTimerRulerScale.minute(Double(minutes), in: valueRange)
         guard integerValue != bounded else { return }
         integerValue = bounded
         drag = nil
@@ -80,7 +94,7 @@ final class NotchTimerRulerControl: NSSlider {
     override func mouseDragged(with event: NSEvent) {
         guard isEnabled, let previous = drag else { return }
         let x = convert(event.locationInWindow, from: nil).x
-        let value = NotchTimerRulerScale.moving(previous.value, by: Double(x - previous.x))
+        let value = NotchTimerRulerScale.moving(previous.value, by: Double(x - previous.x), in: valueRange)
         drag = (x, value)
         didDrag = true
         select(value)
@@ -90,7 +104,7 @@ final class NotchTimerRulerControl: NSSlider {
         guard isEnabled, drag != nil else { drag = nil; return }
         if !didDrag {
             let offset = convert(event.locationInWindow, from: nil).x - bounds.midX
-            select(NotchTimerRulerScale.moving(doubleValue, by: -Double(offset)))
+            select(NotchTimerRulerScale.moving(doubleValue, by: -Double(offset), in: valueRange))
         }
         drag = nil
     }
@@ -101,7 +115,7 @@ final class NotchTimerRulerControl: NSSlider {
         let delta = abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY)
             ? event.scrollingDeltaX : event.scrollingDeltaY
         let points = Double(delta) * (event.hasPreciseScrollingDeltas ? 1 : NotchTimerRulerScale.spacing)
-        let value = NotchTimerRulerScale.moving(scrollValue ?? doubleValue, by: points)
+        let value = NotchTimerRulerScale.moving(scrollValue ?? doubleValue, by: points, in: valueRange)
         scrollValue = value
         select(value)
         if !event.hasPreciseScrollingDeltas || event.phase.contains(.ended) || event.phase.contains(.cancelled)
@@ -146,10 +160,10 @@ final class NotchTimerRulerControl: NSSlider {
 
     private func select(_ value: Double) {
         guard isEnabled else { return }
-        let minute = NotchTimerRulerScale.minute(value)
+        let minute = NotchTimerRulerScale.minute(value, in: valueRange)
         guard integerValue != minute else { return }
         integerValue = minute
-        setAccessibilityValueDescription(NotchTimerSupport.compactText(Double(minute) * 60, locale: durationLocale))
+        setAccessibilityValueDescription(valueDescription?(minute) ?? NotchTimerSupport.compactText(Double(minute) * 60, locale: durationLocale))
         needsDisplay = true
         sendAction(action, to: target)
     }
@@ -159,7 +173,7 @@ final class NotchTimerRulerControl: NSSlider {
         // Drawn for the full ruler height; a shorter island compresses the
         // ticks and pointer below the labels instead of cutting them off.
         let scale = bounds.height / NotchLayout.timerRulerHeight
-        for minute in 1...180 {
+        for minute in valueRange {
             let x = bounds.midX + CGFloat(NotchTimerRulerScale.offset(of: minute, selected: integerValue))
             guard x >= bounds.minX - 16, x <= bounds.maxX + 16 else { continue }
             let fade = min(1, max(0, min(x - bounds.minX, bounds.maxX - x) / edgeFade))
@@ -167,8 +181,8 @@ final class NotchTimerRulerControl: NSSlider {
             let color = NSColor.systemOrange.withAlphaComponent(fade * strength * (isEnabled ? 1 : 0.4))
             color.setFill()
             NSBezierPath(roundedRect: NSRect(x: x - 2, y: 26 * scale, width: 4, height: 38 * scale), xRadius: 2, yRadius: 2).fill()
-            if minute.isMultiple(of: 5) || minute == 1 {
-                let title = NSAttributedString(string: NotchTimerRulerScale.label(for: minute), attributes: [
+            if minute.isMultiple(of: labelEvery) || minute == valueRange.lowerBound {
+                let title = NSAttributedString(string: tickLabel?(minute) ?? NotchTimerRulerScale.label(for: minute), attributes: [
                     .font: NSFont.monospacedDigitSystemFont(ofSize: 14, weight: .medium), .foregroundColor: color
                 ])
                 title.draw(at: NSPoint(x: x - title.size().width / 2, y: 0))

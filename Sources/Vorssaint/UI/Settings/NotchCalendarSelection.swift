@@ -4,19 +4,33 @@
 import EventKit
 import SwiftUI
 
-/// Per-calendar checkboxes, grouped by account like Calendar.app. Unchecked
-/// calendars stay out of the Calendar section and the event countdown.
+/// Shared by Menu Bar and Dynamic Island settings. The explicit allow-list
+/// keeps calendars added later from silently appearing in the meeting list.
 struct NotchCalendarSelection: View {
     @ObservedObject private var l10n = L10n.shared
     @State private var choices: [NotchCalendarChoice] = []
-    @State private var excluded = NotchCalendarSupport.excludedCalendars()
+    @State private var selected = CalendarSelectionSupport.selected()
+    @State private var loading = true
 
     var body: some View {
         let groups = NotchCalendarSupport.grouped(choices)
         VStack(alignment: .leading, spacing: 6) {
-            if !groups.isEmpty {
-                Divider()
-                Text(FeatureStrings.notchCalendar(l10n.language).calendars).font(.subheadline.weight(.medium))
+            Divider()
+            Text(FeatureStrings.notchCalendar(l10n.language).calendars).font(.subheadline.weight(.medium))
+            Text("Used by upcoming meetings in the menu bar and the Dynamic Island calendar. New calendars stay hidden after you make a selection.")
+                .font(.caption).foregroundStyle(.secondary)
+            if loading { ProgressView().controlSize(.small) }
+            else if groups.isEmpty {
+                Text("No calendars are available. Add an account in macOS Calendar settings, then refresh.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                HStack {
+                    Button("Select all") { save(Set(choices.map(\.id))) }
+                    Button("Clear all") { save([]) }
+                    if selected == nil {
+                        Button("Use these calendars") { save(currentSelection) }
+                    }
+                }
                 ForEach(groups, id: \.first?.sourceID) { group in
                     if let source = group.first?.source, !source.isEmpty {
                         Text(source).font(.caption).foregroundStyle(.secondary).padding(.top, 4)
@@ -33,22 +47,41 @@ struct NotchCalendarSelection: View {
                     }
                 }
             }
+            Button("Refresh calendars") { Task { await reload() } }
+                .disabled(loading)
         }
         .task { await reload() }
         .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
             Task { await reload() }
         }
+        .onReceive(NotificationCenter.default.publisher(for: CalendarSelectionSupport.changed)) { _ in
+            selected = CalendarSelectionSupport.selected()
+        }
+    }
+
+    private var currentSelection: Set<String> {
+        selected ?? Set(choices.map(\.id)).subtracting(NotchCalendarSupport.excludedCalendars())
     }
 
     private func reload() async {
+        loading = true
         choices = await NotchCalendarService.shared.calendarChoices()
+        selected = CalendarSelectionSupport.selected()
+        loading = false
+    }
+
+    private func save(_ identifiers: Set<String>) {
+        CalendarSelectionSupport.store(identifiers)
+        selected = identifiers
+        NotchCalendarService.shared.syncWithPreferences()
+        UpcomingMeetingMenuBarService.shared.syncWithPreferences()
     }
 
     private func shown(_ identifier: String) -> Binding<Bool> {
-        Binding(get: { !excluded.contains(identifier) }, set: { shown in
-            NotchCalendarSupport.setCalendar(identifier, shown: shown)
-            excluded = NotchCalendarSupport.excludedCalendars()
-            NotchCalendarService.shared.syncWithPreferences()
+        Binding(get: { currentSelection.contains(identifier) }, set: { shown in
+            var updated = currentSelection
+            if shown { updated.insert(identifier) } else { updated.remove(identifier) }
+            save(updated)
         })
     }
 }

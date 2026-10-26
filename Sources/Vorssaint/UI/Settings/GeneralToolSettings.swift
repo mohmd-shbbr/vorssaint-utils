@@ -34,6 +34,10 @@ struct GeneralToolSettings: View {
                         }
                     }
                     .settingsSectionAnchor(.panelConfiguration, cornerRadius: 16)
+                    WorldClockSettings()
+                    SettingsCard(title: "Calendar selection and upcoming meetings") {
+                        CalendarMenuBarSettings()
+                    }
                 case .mixer:
                     MixerSection(settingsMode: true)
                         .settingsSectionAnchor(.mixer, cornerRadius: 16)
