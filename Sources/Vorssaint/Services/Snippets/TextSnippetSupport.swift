@@ -667,6 +667,9 @@ enum TextSnippetSupport {
 /// Shared by typed expansion, library insertion and the editor. Never interprets
 /// clipboard text as markup or fetches links/resources.
 enum RichSnippetSupport {
+    /// Ten CSS pixels at 96 dpi corresponds to 7.5 native typographic points.
+    static var defaultFont: NSFont { NSFont(name: "Verdana", size: 7.5) ?? .systemFont(ofSize: 7.5) }
+
     static func decode(_ data: Data?, matching text: String) -> NSAttributedString? {
         guard let data,
               let value = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSAttributedString.self, from: data),
@@ -731,7 +734,15 @@ enum RichSnippetSupport {
         if let rtf = try? payload.data(from: range, documentAttributes: [
             .documentType: NSAttributedString.DocumentType.rtf
         ]) { formats[.rtf] = rtf }
-        if let html = try? payload.data(from: range, documentAttributes: [
+        // AppKit emits native point sizes as CSS px without converting units.
+        // Scale only the HTML copy so web and RTF destinations use the same size.
+        let htmlPayload = NSMutableAttributedString(attributedString: payload)
+        payload.enumerateAttribute(.font, in: range) { value, run, _ in
+            if let font = value as? NSFont {
+                htmlPayload.addAttribute(.font, value: NSFontManager.shared.convert(font, toSize: font.pointSize * 4 / 3), range: run)
+            }
+        }
+        if let html = try? htmlPayload.data(from: range, documentAttributes: [
             .documentType: NSAttributedString.DocumentType.html
         ]) { formats[.html] = html }
         return formats

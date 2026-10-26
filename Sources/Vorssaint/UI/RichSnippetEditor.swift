@@ -188,13 +188,13 @@ struct RichSnippetEditor: View {
             removing ? manager.convert(font, toNotHaveTrait: trait) : manager.convert(font, toHaveTrait: trait)
         }
         if range.length == 0 {
-            editor.typingAttributes[.font] = converted(first ?? .systemFont(ofSize: 13))
+            editor.typingAttributes[.font] = converted(first ?? RichSnippetSupport.defaultFont)
             focus()
         } else {
             edit(range: range) { storage in
                 let copy = NSAttributedString(attributedString: storage)
                 copy.enumerateAttribute(.font, in: range) { font, run, _ in
-                    storage.addAttribute(.font, value: converted(font as? NSFont ?? .systemFont(ofSize: 13)), range: run)
+                    storage.addAttribute(.font, value: converted(font as? NSFont ?? RichSnippetSupport.defaultFont), range: run)
                 }
             }
         }
@@ -253,7 +253,7 @@ private struct RichSnippetTextView: NSViewRepresentable {
         view.isAutomaticDashSubstitutionEnabled = false
         view.isAutomaticTextReplacementEnabled = false
         view.isAutomaticLinkDetectionEnabled = false
-        view.font = .systemFont(ofSize: 13)
+        view.font = RichSnippetSupport.defaultFont
         if let rich = RichSnippetSupport.decode(rtf, matching: text) { view.textStorage?.setAttributedString(rich) }
         else { view.string = text }
         view.delegate = context.coordinator
