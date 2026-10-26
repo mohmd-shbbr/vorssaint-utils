@@ -762,6 +762,12 @@ struct AboutSettings: View {
                         .textSelection(.enabled)
                 }
             }
+            #if NOTCHCRAFT_COMMUNITY
+            Text("Independent community fork of Vorssaint · GPL-3.0-or-later")
+                .font(.caption).foregroundStyle(.secondary)
+            Link("Community releases and support", destination: AppInfo.repositoryURL)
+                .font(.caption)
+            #endif
             Text(l10n.s.aboutDescription)
                 .font(.system(size: 12))
                 .multilineTextAlignment(.center)

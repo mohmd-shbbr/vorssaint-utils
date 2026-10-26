@@ -29,12 +29,14 @@ trap 'exit 1' INT TERM HUP
 # Flags: --dev builds the local-only "Vorssaint (Developer)" variant (its own
 # bundle id, so it coexists with the official app); --install puts it in /Applications.
 DEV=0
+COMMUNITY=0
 INSTALL=0
 TEST=0
 TEST_ARGS=()
 for arg in "$@"; do
     case "$arg" in
         --dev)     DEV=1 ;;
+        --community) COMMUNITY=1 ;;
         --install) INSTALL=1 ;;
         --test)    TEST=1 ;;
         --test-suite=*) TEST=1; TEST_ARGS+=("--suite=${arg#*=}") ;;
@@ -57,6 +59,13 @@ else
     APP_OPTIMIZATION_FLAGS=(-O)
     BUILD_CONFIGURATION="release"
 fi
+if (( COMMUNITY )); then
+    (( DEV || INSTALL || TEST )) && { echo "--community must be built separately" >&2; exit 1; }
+    APP_NAME="NotchCraft"
+    EXECUTABLE="NotchCraft"
+    APP_BUNDLE_ID="io.github.mohmd-shbbr.notchcraft"
+    BUILD_VARIANT_FLAGS=(-D NOTCHCRAFT_COMMUNITY -file-prefix-map "$PWD"=/NotchCraftSource -debug-prefix-map "$PWD"=/NotchCraftSource)
+fi
 FAN_HELPER_ID="$APP_BUNDLE_ID.fan-control"
 # Now Playing is read through /usr/bin/perl loading this library; see
 # Sources/NowPlayingAdapter. Staged under Contents/Frameworks, signed on its own.
@@ -65,6 +74,7 @@ NOW_PLAYING_ADAPTER="libVorssaintNowPlaying.dylib"
 TARGET="arm64-apple-macosx14.0"
 ENTITLEMENTS="Resources/Vorssaint.entitlements"
 LEGACY_IDENTITY="Vorssaint Utils Signing"
+(( COMMUNITY )) && LEGACY_IDENTITY="NotchCraft Community Signing"
 
 developer_id_identity() {
     security find-identity -v -p codesigning 2>/dev/null \
@@ -642,12 +652,18 @@ swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" -emit-library \
     -o "build/$NOW_PLAYING_ADAPTER"
 
 echo "▸ Generating app icon…"
-swift Tools/MakeIcon.swift build/AppIcon.iconset
+if (( COMMUNITY )); then
+    swift Tools/MakeCommunityIcon.swift build/AppIcon.iconset
+else
+    swift Tools/MakeIcon.swift build/AppIcon.iconset
+fi
 xattr -c -r build/AppIcon.iconset build/AppIcon.icns build/MenuBarIcon.png build/MenuBarIcon@2x.png build/BrandMark.png 2>/dev/null || true
 ACTOOL_BIN="$(xcrun --find actool 2>/dev/null || true)"
 ICON_TMP="$(mktemp -d)"
 ADAPTIVE_SKIP=""
-if [[ -z "$ACTOOL_BIN" ]]; then
+if (( COMMUNITY )); then
+    ADAPTIVE_SKIP="community build uses its own icon"
+elif [[ -z "$ACTOOL_BIN" ]]; then
     ADAPTIVE_SKIP="actool not found (adaptive icons need Xcode 26+)"
 else
     echo "▸ Compiling adaptive icon catalog…"
@@ -691,7 +707,7 @@ cp CHANGELOG.md "$STAGE/Contents/Resources/CHANGELOG.md"
 for lproj in Resources/*.lproj(N); do
     cp -R "$lproj" "$STAGE/Contents/Resources/"
 done
-if (( DEV )); then
+if (( DEV || COMMUNITY )); then
     # A distinct identity so the Developer build installs and runs next to the
     # official app, with its own permissions, preferences and login item.
     /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $APP_BUNDLE_ID" "$STAGE/Contents/Info.plist"
@@ -710,6 +726,25 @@ if (( DEV )); then
     [[ -n "$(git status --porcelain 2>/dev/null)" ]] && SHA="$SHA-dirty"
     /usr/libexec/PlistBuddy -c "Add :VorssaintBuildCommit string '$SHA · $(date '+%Y-%m-%d %H:%M')'" "$STAGE/Contents/Info.plist"
     echo "  stamped dev build: $SHA"
+fi
+if (( COMMUNITY )); then
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.0-beta.1" "$STAGE/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion 1" "$STAGE/Contents/Info.plist"
+    cp LICENSE "$STAGE/Contents/Resources/LICENSE"
+    cp docs/COMMUNITY-RELEASE.md "$STAGE/Contents/Resources/COMMUNITY-RELEASE.md"
+    # Preserve original copyright notices; replace display branding in macOS prompts.
+    python3 - "$STAGE/Contents" <<'PYBRAND'
+import pathlib, plistlib, sys
+root = pathlib.Path(sys.argv[1])
+p = root / 'Info.plist'
+d = plistlib.loads(p.read_bytes())
+for key, value in list(d.items()):
+    if key.startswith('NS') and isinstance(value, str) and key.endswith('UsageDescription'):
+        d[key] = value.replace('Vorssaint', 'NotchCraft')
+p.write_bytes(plistlib.dumps(d))
+for p in (root / 'Resources').glob('*.lproj/*.strings'):
+    p.write_text(p.read_text().replace('Vorssaint', 'NotchCraft'))
+PYBRAND
 fi
 FAN_HELPER_VERSION="$(
     export LC_ALL=C
@@ -752,6 +787,7 @@ xattr -c -r "$STAGE" 2>/dev/null || true
 #      designated requirement across their local builds.
 #   3. Ad-hoc — fresh clone with no identity at all.
 DEVID="$(developer_id_identity)"
+(( COMMUNITY )) && DEVID=""
 codesign_app() {
     local target="$1"
     if [[ -n "$DEVID" ]]; then

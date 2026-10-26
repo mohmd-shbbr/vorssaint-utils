@@ -27,7 +27,11 @@ final class UpdateService: ObservableObject {
     /// preview. Set alongside `.available`; cleared otherwise.
     @Published private(set) var availableNotes: String?
 
+    #if NOTCHCRAFT_COMMUNITY
+    private let repository = "mohmd-shbbr/vorssaint-utils"
+    #else
     private let repository = "vorssaint/vorssaint-utils"
+    #endif
     private var downloadURL: URL?
     /// Size the release advertises for the asset, used to bound the download.
     private var downloadExpectedBytes: Int64?

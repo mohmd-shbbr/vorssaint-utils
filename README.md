@@ -1,4 +1,5 @@
-> **Personal fork:** adds rich-text snippets and Raycast-style argument fields, including dropdowns.
+> **NotchCraft community fork:** rich-text snippets, configurable arguments, local backups, world clocks and selected-calendar meetings.
+> **[Download the macOS app](https://github.com/mohmd-shbbr/vorssaint-utils/releases)** · [Installation and privacy](docs/COMMUNITY-RELEASE.md)
 > [Usage, backup and restore](docs/RICH-TEXT-SNIPPETS.md) · [Automatic upstream updates](docs/PERSONAL-UPDATES.md)
 > The original Vorssaint project and its documentation follow below.
 

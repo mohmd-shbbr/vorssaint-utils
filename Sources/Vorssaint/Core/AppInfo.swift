@@ -5,13 +5,29 @@ import Foundation
 
 /// Static identity of the app, shared by UI, notifications and tooling.
 enum AppInfo {
+    #if NOTCHCRAFT_COMMUNITY
+    static let name = "NotchCraft"
+    #else
     static let name = "Vorssaint"
+    #endif
     static let copyright = "© 2026 Vorssaint"
+    #if NOTCHCRAFT_COMMUNITY
+    static let websiteURL = URL(string: "https://github.com/mohmd-shbbr/vorssaint-utils")!
+    static let repositoryURL = websiteURL
+    #else
     static let websiteURL = URL(string: "https://vorssaint.com")!
     static let repositoryURL = URL(string: "https://github.com/vorssaint/vorssaint-utils")!
+    #endif
+    #if NOTCHCRAFT_COMMUNITY
+    static let coffeeURL = repositoryURL
+    static let discordURL = URL(string: "https://github.com/mohmd-shbbr/vorssaint-utils/issues")!
+    static let socialURL = repositoryURL
+    #else
     static let coffeeURL = URL(string: "https://buymeacoffee.com/vorssaint")!
     static let discordURL = URL(string: "https://discord.gg/M6BwWH4BJp")!
     static let socialURL = URL(string: "https://x.com/vorssaint")!
+
+    #endif
 
     /// The bundle version. The fallback only applies to the bare binary
     /// (e.g. `--selftest`), never the shipped app, which reads its Info.plist.
@@ -22,7 +38,11 @@ enum AppInfo {
     /// True for the local "Vorssaint (Developer)" build (bundle id ends in `.dev`).
     /// It is never published and never auto-updates; all work is tested here first.
     static var isDeveloperBuild: Bool {
-        (Bundle.main.bundleIdentifier ?? "").hasSuffix(".dev")
+        #if NOTCHCRAFT_COMMUNITY
+        return true // Public fork uses manual downloads, never the official update feed.
+        #else
+        return (Bundle.main.bundleIdentifier ?? "").hasSuffix(".dev")
+        #endif
     }
 
     /// True when the current version is a pre-release (e.g. 3.3.4-beta.1 or 3.3.4-rc.1).
