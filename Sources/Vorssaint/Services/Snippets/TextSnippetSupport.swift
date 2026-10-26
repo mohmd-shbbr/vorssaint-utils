@@ -805,3 +805,33 @@ enum SnippetArgumentSupport {
         return result
     }
 }
+
+extension SnippetArgumentSupport {
+    enum InputKind: String, CaseIterable { case text, dropdown, password }
+
+    /// Build parser-compatible placeholders without requiring users to edit syntax.
+    static func token(name: String, kind: InputKind, choices: [String], defaultValue: String?) -> String? {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return nil }
+        let choices = choices.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        if kind == .dropdown {
+            guard !choices.isEmpty, choices.allSatisfy({ !$0.isEmpty && !$0.contains(",") && !$0.contains(where: \.isNewline) }),
+                  Set(choices).count == choices.count,
+                  defaultValue == nil || defaultValue == "" || choices.contains(defaultValue!) else { return nil }
+        }
+        func quoted(_ value: String) -> String {
+            value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        }
+        var properties = ["name=\"\(quoted(name))\""]
+        if kind == .dropdown { properties.append("options=\"\(quoted(choices.joined(separator: ",")))\"") }
+        if let defaultValue { properties.append("default=\"\(quoted(defaultValue))\"") }
+        if kind == .password { properties.append("type=\"password\"") }
+        return "{argument \(properties.joined(separator: " "))}"
+    }
+
+    static func occurrence(in text: String, selection: NSRange) -> Occurrence? {
+        occurrences(in: text).first { occurrence in
+            selection.location >= occurrence.range.location && NSMaxRange(selection) <= NSMaxRange(occurrence.range)
+        }
+    }
+}

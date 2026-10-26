@@ -13,6 +13,10 @@ struct RichSnippetEditor: View {
     @Binding var selectedRange: Range<Int>?
     var onCreate: (NSTextView) -> Void
     @State private var editor: NSTextView?
+    @State private var showingArgument = false
+    @State private var argumentInitial: SnippetArgumentSupport.Occurrence?
+    @State private var argumentRange = NSRange(location: 0, length: 0)
+    @State private var argumentSnapshot = ""
     @State private var showingLink = false
     @State private var linkURL = ""
     @State private var linkRange = NSRange(location: 0, length: 0)
@@ -67,20 +71,78 @@ struct RichSnippetEditor: View {
                     NSColorPanel.shared.setAction(#selector(NSTextView.changeColor(_:)))
                     NSColorPanel.shared.orderFront(nil)
                 }
-                tool("plus") {
-                    guard let editor else { return }
-                    focus()
-                    editor.insertText("{argument}", replacementRange: editor.selectedRange())
-                }.help(FeatureStrings.snippets(l10n.language).argumentTitle)
+                Button {
+                    openArgument(at: editor?.selectedRange() ?? NSRange(location: 0, length: 0))
+                } label: {
+                    Label(detectedArgument == nil ? strings.argumentField : strings.argumentEditLabel,
+                          systemImage: detectedArgument == nil ? "plus" : "slider.horizontal.3")
+                }
+                .popover(isPresented: $showingArgument) {
+                    SnippetArgumentBuilder(strings: strings, cancelLabel: l10n.s.uninstallerCancel,
+                                           initial: argumentInitial?.argument,
+                                           confirm: { token in applyArgument(token); showingArgument = false },
+                                           cancel: { showingArgument = false })
+                }
                 Spacer(minLength: 0)
             }.buttonStyle(.borderless).padding(5)
             Text(FeatureStrings.snippets(l10n.language).richTextHint)
                 .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 5)
+            if !SnippetArgumentSupport.occurrences(in: text).isEmpty {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 6) {
+                        ForEach(SnippetArgumentSupport.occurrences(in: text), id: \.range.location) { occurrence in
+                            Button { openArgument(at: occurrence.range) } label: {
+                                Label(occurrence.argument.name, systemImage: "slider.horizontal.3")
+                                    .font(.caption)
+                            }.help(strings.argumentEditLabel)
+                        }
+                    }
+                }.fixedSize(horizontal: false, vertical: true).padding(.horizontal, 5)
+            }
             RichSnippetTextView(text: $text, rtf: $rtf, selectedRange: $selectedRange) {
                 editor = $0
                 onCreate($0)
             }
         }
+    }
+
+    private var strings: SnippetFeatureStrings { FeatureStrings.snippets(l10n.language) }
+
+    private var detectedArgument: SnippetArgumentSupport.Occurrence? {
+        let range = TextSnippetSupport.selectionRange(in: text, offsets: selectedRange)
+        return SnippetArgumentSupport.occurrence(in: text, selection: NSRange(range, in: text))
+    }
+
+    private func openArgument(at selection: NSRange) {
+        guard let editor else { return }
+        argumentSnapshot = editor.string
+        argumentInitial = SnippetArgumentSupport.occurrence(in: editor.string, selection: selection)
+        argumentRange = argumentInitial?.range ?? selection
+        showingArgument = true
+    }
+
+    private func applyArgument(_ token: String) {
+        guard let editor, let storage = editor.textStorage, editor.string == argumentSnapshot else { NSSound.beep(); return }
+        let ranges: [NSRange]
+        if let initial = argumentInitial, initial.argument.id.hasPrefix("name:") {
+            // Repeated named placeholders configure one input, so edit all of them.
+            ranges = SnippetArgumentSupport.occurrences(in: editor.string)
+                .filter { $0.argument.id == initial.argument.id }.map(\.range)
+        } else { ranges = [argumentRange] }
+        guard editor.shouldChangeText(inRanges: ranges.map { NSValue(range: $0) },
+                                    replacementStrings: ranges.map { _ in token }) else { return }
+        storage.beginEditing()
+        for range in ranges.sorted(by: { $0.location > $1.location }) {
+            let attributes = range.location < storage.length
+                ? storage.attributes(at: range.location, effectiveRange: nil) : editor.typingAttributes
+            storage.replaceCharacters(in: range, with: NSAttributedString(string: token, attributes: attributes))
+        }
+        storage.endEditing()
+        editor.didChangeText()
+        let tokenLength = (token as NSString).length
+        let shift = ranges.filter { $0.location < argumentRange.location }.reduce(0) { $0 + tokenLength - $1.length }
+        editor.setSelectedRange(NSRange(location: min(storage.length, argumentRange.location + shift + tokenLength), length: 0))
+        focus()
     }
 
     private func tool(_ symbol: String, action: @escaping () -> Void) -> some View {

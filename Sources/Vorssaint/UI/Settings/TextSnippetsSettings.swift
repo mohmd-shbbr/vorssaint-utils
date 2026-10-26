@@ -334,6 +334,9 @@ private struct SnippetEditor: View {
                     }
                 }
                 Toggle(text.showInLibraryLabel, isOn: $snippet.showsInLibrary)
+            }
+            .formStyle(.columns)
+            .fixedSize(horizontal: false, vertical: true)
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text(text.replacementLabel)
@@ -364,7 +367,7 @@ private struct SnippetEditor: View {
                                     rtf: $snippet.richReplacement,
                                     selectedRange: $replacementSelection,
                                     onCreate: { replacementEditor.view = $0 })
-                        .frame(minHeight: 76)
+                        .frame(minHeight: 220, maxHeight: .infinity)
                         .overlay(
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
                                 .strokeBorder(Color.primary.opacity(0.12))
@@ -376,8 +379,7 @@ private struct SnippetEditor: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-            }
-            .formStyle(.columns)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             if triggerTooShort, !snippet.trigger.isEmpty {
                 Text(text.triggerTooShort)
                     .font(.caption)
@@ -412,6 +414,29 @@ private struct SnippetEditor: View {
             }
         }
         .padding(18)
-        .frame(width: 440)
+        .frame(minWidth: 640, idealWidth: 760, maxWidth: .infinity,
+               minHeight: 600, idealHeight: 740, maxHeight: .infinity)
+        .background(SnippetEditorWindowSizing())
+    }
+}
+
+/// Let the native sheet resize in both dimensions. The text area fills the
+/// available space instead of occupying the metadata form's narrow column.
+private struct SnippetEditorWindowSizing: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { SizingView() }
+    func updateNSView(_ view: NSView, context: Context) {}
+    private final class SizingView: NSView {
+        private weak var configuredWindow: NSWindow?
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let window = self.window, window !== self.configuredWindow else { return }
+                self.configuredWindow = window
+                window.styleMask.insert(.resizable)
+                window.contentMinSize = NSSize(width: 640, height: 600)
+                let visible = window.screen?.visibleFrame.size ?? NSSize(width: 1440, height: 900)
+                window.setContentSize(NSSize(width: min(760, visible.width - 80), height: min(740, visible.height - 100)))
+            }
+        }
     }
 }

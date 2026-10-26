@@ -257,6 +257,31 @@ enum SnippetArgumentTests {
             suite.expect(expandedURL.string == "https://portal\(suffix).example.com/admin/",
                          "DC selection substitutes the suffix directly without URL encoding or generation")
         }
+        let configured = SnippetArgumentSupport.token(name: "  Region ", kind: .dropdown,
+                                                       choices: ["one", "two"], defaultValue: "two")!
+        let configuredFields = SnippetArgumentSupport.arguments(in: configured)
+        suite.expect(configuredFields.count == 1 && configuredFields[0].name == "Region"
+                     && configuredFields[0].options == ["one", "two"] && configuredFields[0].defaultValue == "two",
+                     "native builder serializes a named dropdown that the production parser understands")
+        let escaped = SnippetArgumentSupport.token(name: #"Path \"A\""#, kind: .password,
+                                                   choices: [], defaultValue: #"C:\folder\file"#)!
+        let escapedField = SnippetArgumentSupport.arguments(in: escaped).first
+        suite.expect(escapedField?.name == #"Path \"A\""# && escapedField?.defaultValue == #"C:\folder\file"#
+                     && escapedField?.password == true, "builder escapes quotes and backslashes without losing values")
+        suite.expect(SnippetArgumentSupport.token(name: "", kind: .text, choices: [], defaultValue: nil) == nil,
+                     "builder requires a usable field name")
+        for invalidChoices in [[], [""], ["one", "one"], ["one,two"], ["one\ntwo"]] {
+            suite.expect(SnippetArgumentSupport.token(name: "Field", kind: .dropdown, choices: invalidChoices, defaultValue: nil) == nil,
+                         "builder rejects choices that cannot round trip through placeholder syntax")
+        }
+        suite.expect(SnippetArgumentSupport.token(name: "Field", kind: .dropdown, choices: ["one"], defaultValue: "two") == nil,
+                     "builder requires a dropdown default to be a valid choice")
+        let around = "Before " + configured + " after"
+        let tokenRange = (around as NSString).range(of: configured)
+        suite.expect(SnippetArgumentSupport.occurrence(in: around, selection: NSRange(location: tokenRange.location + 5, length: 0))?.argument.name == "Region",
+                     "placing the cursor inside a token finds it for native editing")
+        suite.expect(SnippetArgumentSupport.occurrence(in: around, selection: NSRange(location: 0, length: 3)) == nil,
+                     "ordinary selected text opens a new argument rather than editing a different token")
         let blank = SnippetArgumentSupport.arguments(in: #"{argument default=""}"#)
         suite.expect(SnippetArgumentSupport.isValid([:], for: blank), "an explicitly empty default makes a field optional")
     }

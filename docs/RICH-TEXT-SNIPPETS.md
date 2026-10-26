@@ -102,3 +102,21 @@ trip. Native editor previews were used to check bold, links, bullets, numbered
 list continuation, and the argument dialog. Insertion into your particular email,
 browser, or editor apps still needs a trial; the actual second-Mac restore has
 not been exercised on a second physical device.
+
+## Editor and argument input
+
+The snippet editor opens at a larger size and can be resized by dragging its
+window edge. The rich-text area grows with the window.
+
+Use **Argument** in the toolbar to configure a name, text/dropdown/password
+input, individual dropdown choices, and an optional default. Existing arguments
+have edit buttons below the toolbar; updating a named argument updates its
+occurrences together. The stored token syntax remains compatible with manually
+authored snippets.
+
+During expansion, arguments appear in a standalone floating panel over the
+application being edited. It does not activate the Settings window. The first
+field receives keyboard focus; Tab moves between inputs, Return submits, and
+Escape cancels. Required fields are validated before insertion. Focus returns
+to the original application, and insertion is skipped if that application is no
+longer frontmost or secure input has begun.
