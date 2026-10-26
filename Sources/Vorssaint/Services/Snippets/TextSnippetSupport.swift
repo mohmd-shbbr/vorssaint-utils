@@ -667,8 +667,8 @@ enum TextSnippetSupport {
 /// Shared by typed expansion, library insertion and the editor. Never interprets
 /// clipboard text as markup or fetches links/resources.
 enum RichSnippetSupport {
-    /// Ten CSS pixels at 96 dpi corresponds to 7.5 native typographic points.
-    static var defaultFont: NSFont { NSFont(name: "Verdana", size: 7.5) ?? .systemFont(ofSize: 7.5) }
+    /// Native editor size: ten typographic points (13⅓ CSS pixels at 96 dpi).
+    static var defaultFont: NSFont { NSFont(name: "Verdana", size: 10) ?? .systemFont(ofSize: 10) }
 
     static func decode(_ data: Data?, matching text: String) -> NSAttributedString? {
         guard let data,

@@ -31,7 +31,7 @@ identity differ from official Vorssaint.
 - Calendar selection shared by Dynamic Island and upcoming meeting display
   in the menu bar.
 
-Snippet rich text uses Verdana 10 CSS px by default. Destination apps may
+Snippet rich text uses Verdana 10 points by default. Destination apps may
 choose their own paste formatting.
 
 ## Privacy and updates

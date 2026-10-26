@@ -130,7 +130,7 @@ after Space, Tab, or Return for users who prefer a delimiter.
 `{{cursor}}` places the insertion point inside the expanded text. Clipboard
 values and argument values remain literal and do not create cursor markers.
 
-The editor defaults to Verdana at 10 CSS pixels (7.5 native points). HTML paste
+The editor defaults to Verdana at 10 native points (13⅓ CSS pixels). HTML paste
 converts native point sizes into CSS pixels, while RTF retains point units, so
 both formats use the same physical text size. Font changes retain links and
 bold/italic traits.

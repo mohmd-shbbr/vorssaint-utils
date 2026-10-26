@@ -97,13 +97,13 @@ enum TextSnippetExpansionTests {
         let fontSample = NSAttributedString(string: "Example", attributes: [.font: defaultFont, .link: "https://example.com"])
         let fontFormats = RichSnippetSupport.pasteFormats(fontSample, trailingText: "")
         let fontHTML = fontFormats[.html].flatMap { String(data: $0, encoding: .utf8) } ?? ""
-        suite.expect(defaultFont.familyName == "Verdana" && defaultFont.pointSize == 7.5
-                     && fontHTML.contains("10.0px") && fontHTML.contains("Verdana"),
-                     "the default font uses Verdana at ten CSS pixels in HTML")
+        suite.expect(defaultFont.familyName == "Verdana" && defaultFont.pointSize == 10
+                     && fontHTML.contains("13.3px") && fontHTML.contains("Verdana"),
+                     "the default font uses Verdana at ten native points and equivalent CSS pixels")
         let fontRTF = fontFormats[.rtf].flatMap {
             try? NSAttributedString(data: $0, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil)
         }
-        suite.expect((fontRTF?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont)?.pointSize == 7.5
+        suite.expect((fontRTF?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont)?.pointSize == 10
                      && fontRTF?.attribute(.link, at: 0, effectiveRange: nil) != nil,
                      "RTF uses equivalent native point size while retaining hyperlinks")
 
