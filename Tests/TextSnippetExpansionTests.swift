@@ -71,6 +71,7 @@ enum TextSnippetExpansionTests {
     final class TransientPaste {
         static let shared = TransientPaste()
         func paste(_ text: String,
+                   formats: [NSPasteboard.PasteboardType: Data] = [:],
                    willPostShortcut: (() -> Void)? = nil,
                    didPostShortcut: (() -> Void)? = nil,
                    didFail: (() -> Void)? = nil) -> Bool {
@@ -83,6 +84,8 @@ enum TextSnippetExpansionTests {
     }
 
     static func run(_ suite: TestSuite) {
+        RichSnippetTests.run(suite)
+        SnippetArgumentTests.run(suite)
         func reset() {
             log = []
             focusedSelection = nil
@@ -160,5 +163,101 @@ enum TextSnippetExpansionTests {
         _ = postExpansion(deleteCount: 0, typedTrigger: "", text: "StartEnd", trailingKeyCode: nil, trailingFlags: [])
         suite.expect(log == ["StartEnd"],
                      "an insertion with no trigger to clear never asks the field or deletes")
+    }
+}
+
+/// Round trips through the same storage and clipboard serializers used by the
+/// app, including a variable whose token spans differently formatted runs.
+enum RichSnippetTests {
+    static func run(_ suite: TestSuite) {
+        let source = NSMutableAttributedString(string: "Guide {{clipboard}}\nFirst\nSecond")
+        let whole = NSRange(location: 0, length: source.length)
+        source.addAttribute(.font, value: NSFont.boldSystemFont(ofSize: 15), range: whole)
+        source.addAttributes([.link: URL(string: "https://example.com/guide")!,
+                              .underlineStyle: NSUnderlineStyle.single.rawValue],
+                             range: NSRange(location: 0, length: 5))
+        source.addAttribute(.strikethroughStyle, value: 1, range: NSRange(location: 0, length: 5))
+        source.addAttribute(.foregroundColor, value: NSColor.red, range: NSRange(location: 0, length: 5))
+        let style = NSMutableParagraphStyle()
+        style.textLists = [NSTextList(markerFormat: .disc, options: 0)]
+        let listRange = (source.string as NSString).range(of: "First\nSecond")
+        source.addAttribute(.paragraphStyle, value: style, range: listRange)
+        source.addAttribute(.font, value: NSFont.systemFont(ofSize: 12), range: NSRange(location: 10, length: 4))
+        var snippet = TextSnippet()
+        snippet.replacement = source.string
+        snippet.richReplacement = RichSnippetSupport.encode(source)
+        let stored = try! JSONDecoder().decode(TextSnippet.self, from: JSONEncoder().encode(snippet))
+        let decoded = RichSnippetSupport.decode(stored.richReplacement, matching: stored.replacement)
+        suite.expect(decoded?.string == source.string, "rich text survives snippet JSON backup and restore")
+        suite.expect(decoded?.attribute(.link, at: 0, effectiveRange: nil) != nil, "hyperlink survives storage")
+        suite.expect((decoded?.attribute(.underlineStyle, at: 0, effectiveRange: nil) as? Int) == 1, "underline survives storage")
+        suite.expect((decoded?.attribute(.strikethroughStyle, at: 0, effectiveRange: nil) as? Int) == 1, "strikethrough survives storage")
+        let font = decoded?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
+        suite.expect(font.map { NSFontManager.shared.traits(of: $0).contains(.boldFontMask) } == true, "bold survives storage")
+        let paragraph = decoded?.attribute(.paragraphStyle, at: listRange.location, effectiveRange: nil) as? NSParagraphStyle
+        suite.expect(paragraph?.textLists.first?.markerFormat == .disc, "bullet list metadata survives storage")
+        let expanded = RichSnippetSupport.expanded(stored, date: Date(), clipboard: "{{date}} <tag> & text")!
+        suite.expect(expanded.string.hasPrefix("Guide {{date}} <tag> & text\n"), "split-run variable expands once and clipboard stays literal")
+        suite.expect(expanded.attribute(.link, at: 0, effectiveRange: nil) != nil, "expansion retains the surrounding hyperlink")
+        suite.expect(RichSnippetSupport.plainText(expanded).hasSuffix("• First\n• Second"),
+                     "plain-text fallback materializes list markers for text-only apps")
+        let formats = RichSnippetSupport.pasteFormats(expanded, trailingText: " ")
+        suite.expect(formats[.rtf] != nil && formats[.html] != nil, "paste offers both RTF and HTML")
+        let payload = try! NSAttributedString(data: formats[.rtf]!, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil)
+        suite.expect(payload.string == expanded.string + " ",
+                     "RTF keeps list content and the trailing delimiter")
+        let pastedList = (payload.string as NSString).range(of: "First")
+        suite.expect((payload.attribute(.paragraphStyle, at: pastedList.location, effectiveRange: nil) as? NSParagraphStyle)?.textLists.first?.markerFormat == .disc,
+                     "rich clipboard retains native bullet-list metadata")
+        suite.expect(payload.attribute(.link, at: payload.length - 1, effectiveRange: nil) == nil, "delimiter does not inherit a hyperlink")
+        suite.expect(RichSnippetSupport.decode(Data("bad RTF".utf8), matching: "plain") == nil, "corrupt formatting falls back to plain text")
+        suite.expect(RichSnippetSupport.decode(stored.richReplacement, matching: "changed") == nil, "stale formatting cannot insert old content")
+        let legacy = Data(#"{"id":"00000000-0000-0000-0000-000000000001","name":"Old","trigger":"old","replacement":"plain","expansion":"immediate","enabled":true}"#.utf8)
+        let old = try! JSONDecoder().decode(TextSnippet.self, from: legacy)
+        suite.expect(old.richReplacement == nil && old.replacement == "plain", "legacy snippets load without a migration")
+    }
+}
+
+enum SnippetArgumentTests {
+    static func run(_ suite: TestSuite) {
+        let template = #"Hi {argument name="Customer"}, {argument name="Tone" options="Happy, Professional" default="Professional"}. {argument name="Customer"}! {argument} {argument type="password"}"#
+        let fields = SnippetArgumentSupport.arguments(in: template)
+        suite.expect(fields.count == 4, "named arguments share a field and unnamed arguments stay independent")
+        suite.expect(fields[0].name == "Customer" && fields[0].required, "text arguments are required by default")
+        suite.expect(fields[1].options == ["Happy", "Professional"] && !fields[1].required, "dropdown choices and defaults are parsed")
+        suite.expect(fields.last?.password == true, "password argument uses a masked field")
+        suite.expect(!SnippetArgumentSupport.isValid([:], for: fields), "missing required values cannot insert")
+        let values = [fields[0].id: "A & B <tag> {{date}} {argument}", fields[2].id: "One", fields[3].id: "Secret"]
+        suite.expect(SnippetArgumentSupport.isValid(values, for: fields), "optional dropdown uses its default")
+        var invalid = values
+        invalid[fields[1].id] = "Other"
+        suite.expect(!SnippetArgumentSupport.isValid(invalid, for: fields), "dropdown rejects values outside its choices")
+        var snippet = TextSnippet()
+        snippet.replacement = template
+        let rich = NSMutableAttributedString(string: template)
+        rich.addAttributes([.underlineStyle: 1, .font: NSFont.boldSystemFont(ofSize: 13)], range: NSRange(location: 0, length: rich.length))
+        snippet.richReplacement = RichSnippetSupport.encode(rich)
+        let result = SnippetArgumentSupport.render(snippet, values: values, date: Date(), clipboard: nil)
+        suite.expect(result.string == "Hi A & B <tag> {{date}} {argument}, Professional. A & B <tag> {{date}} {argument}! One Secret",
+                     "arguments substitute once, reuse names, apply defaults, and preserve literal user input")
+        suite.expect(result.attribute(.underlineStyle, at: 3, effectiveRange: nil) as? Int == 1,
+                     "argument replacement inherits the placeholder formatting")
+        suite.expect(SnippetArgumentSupport.arguments(in: "{{argument}} {argument name=bad}").isEmpty,
+                     "unrecognized placeholder syntax stays literal")
+        var nestedDefault = TextSnippet()
+        nestedDefault.replacement = #"{argument default="{{date}}"}"#
+        suite.expect(SnippetArgumentSupport.render(nestedDefault, values: [:], date: Date(), clipboard: nil).string == "{{date}}",
+                     "variables inside argument defaults stay literal and do not create overlapping edits")
+        var adminLink = TextSnippet()
+        adminLink.replacement = #"https://portal{argument name="DC" options=".com,.eu"}.example.com/admin/"#
+        let dc = SnippetArgumentSupport.arguments(in: adminLink.replacement)
+        suite.expect(dc.count == 1 && dc[0].options == [".com", ".eu"], "DC example creates one dropdown with literal domain suffixes")
+        for suffix in [".com", ".eu"] {
+            let expandedURL = SnippetArgumentSupport.render(adminLink, values: [dc[0].id: suffix], date: Date(), clipboard: nil)
+            suite.expect(expandedURL.string == "https://portal\(suffix).example.com/admin/",
+                         "DC selection substitutes the suffix directly without URL encoding or generation")
+        }
+        let blank = SnippetArgumentSupport.arguments(in: #"{argument default=""}"#)
+        suite.expect(SnippetArgumentSupport.isValid([:], for: blank), "an explicitly empty default makes a field optional")
     }
 }

@@ -166,17 +166,32 @@ final class SnippetLibraryService: ObservableObject {
             }
             return
         }
+        if !SnippetArgumentSupport.arguments(in: snippet.replacement).isEmpty {
+            if !SnippetArgumentPrompt.request(snippet, completion: { [weak self] values in
+                guard let values else { return }
+                self?.insertResolved(snippet, argumentValues: values)
+            }) { NSSound.beep() }
+            return
+        }
+        insertResolved(snippet)
+    }
+
+    private func insertResolved(_ snippet: TextSnippet, argumentValues: [String: String]? = nil) {
         let clipboard = TextSnippetSupport.needsClipboard(snippet.replacement)
             ? NSPasteboard.general.string(forType: .string)
             : nil
-        let text = TextSnippetSupport.expand(snippet.replacement,
-                                             date: Date(),
+        let date = Date()
+        let resolved = argumentValues.map { SnippetArgumentSupport.render(snippet, values: $0, date: date, clipboard: clipboard) }
+        let richText = resolved.flatMap { snippet.richReplacement == nil ? nil : $0 }
+            ?? RichSnippetSupport.expanded(snippet, date: date, clipboard: clipboard)
+        let text = resolved?.string ?? TextSnippetSupport.expand(snippet.replacement,
+                                             date: date,
                                              clipboard: clipboard)
         // A beat for the panel to leave the screen; the target app kept focus
         // (the panel never activates), so the caret is exactly where the user
         // left it.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-            self?.postWhenModifiersReleased(text: text, attempt: 0)
+            self?.postWhenModifiersReleased(text: text, richText: richText, attempt: 0)
         }
     }
 
@@ -185,7 +200,7 @@ final class SnippetLibraryService: ObservableObject {
     /// clean keyboard first: every 15 ms for up to ~1.5 s, plus a settle beat
     /// (PastePlain's proven dance). Secure input means a password field:
     /// nothing may be typed there.
-    private func postWhenModifiersReleased(text: String, attempt: Int) {
+    private func postWhenModifiersReleased(text: String, richText: NSAttributedString?, attempt: Int) {
         let held = CGEventSource.flagsState(.combinedSessionState)
             .intersection([.maskCommand, .maskAlternate, .maskShift, .maskControl])
         // A modifier still pinned after ~1.5 s means the keyboard never came
@@ -197,7 +212,7 @@ final class SnippetLibraryService: ObservableObject {
         }
         guard held.isEmpty else {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) { [weak self] in
-                self?.postWhenModifiersReleased(text: text, attempt: attempt + 1)
+                self?.postWhenModifiersReleased(text: text, richText: richText, attempt: attempt + 1)
             }
             return
         }
@@ -209,6 +224,7 @@ final class SnippetLibraryService: ObservableObject {
             TextSnippetService.postExpansion(deleteCount: 0,
                                              typedTrigger: "",
                                              text: text,
+                                             richText: richText,
                                              trailingKeyCode: nil,
                                              trailingFlags: [])
         }

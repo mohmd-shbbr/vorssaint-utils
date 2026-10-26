@@ -98,10 +98,14 @@ enum TransientPasteTests {
 
         reset()
         before = 0; posted = 0; failed = 0
-        suite.expect(host.paste("requested", willPostShortcut: { before += 1 },
+        let replacementRTF = Data("{\\rtf1 requested}".utf8)
+        let replacementHTML = Data("<b>requested</b>".utf8)
+        suite.expect(host.paste("requested", formats: [.rtf: replacementRTF, .html: replacementHTML], willPostShortcut: { before += 1 },
                                 didPostShortcut: { posted += 1 }, didFail: { failed += 1 }),
                      "cancellation releases the paste admission flag")
         pump { pasteboard.string(forType: .string) == "requested" }
+        suite.expect(pasteboard.data(forType: .rtf) == replacementRTF && pasteboard.data(forType: .html) == replacementHTML,
+                     "rich paste publishes RTF and HTML alongside its plain-text fallback")
         CGEventSource.held = []
         pump { posted + failed == 1 }
         suite.expect(CGEvent.inserted == ["requested"] && CGEvent.keyUps == 1,

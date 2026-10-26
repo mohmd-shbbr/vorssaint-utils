@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import Foundation
+import AppKit
 
 /// One text snippet: typing the trigger inserts the replacement. Stored as
 /// JSON in defaults; ids and raw values are persisted, so keep them stable.
@@ -19,6 +20,8 @@ struct TextSnippet: Codable, Identifiable, Equatable {
     var name = ""
     var trigger = ""
     var replacement = ""
+    /// An optional attributed-string archive; older plain snippets remain readable.
+    var richReplacement: Data? = nil
     var expansion = Expansion.afterDelimiter
     var enabled = true
     var ignoresCase = false
@@ -29,7 +32,7 @@ struct TextSnippet: Codable, Identifiable, Equatable {
     var showsInLibrary = true
 
     enum CodingKeys: String, CodingKey {
-        case id, name, trigger, replacement, expansion, enabled, ignoresCase, folder, showsInLibrary
+        case id, name, trigger, replacement, richReplacement, expansion, enabled, ignoresCase, folder, showsInLibrary
     }
 }
 
@@ -43,6 +46,7 @@ extension TextSnippet {
         name = try container.decode(String.self, forKey: .name)
         trigger = try container.decode(String.self, forKey: .trigger)
         replacement = try container.decode(String.self, forKey: .replacement)
+        richReplacement = try container.decodeIfPresent(Data.self, forKey: .richReplacement)
         expansion = try container.decode(Expansion.self, forKey: .expansion)
         enabled = try container.decode(Bool.self, forKey: .enabled)
         ignoresCase = try container.decodeIfPresent(Bool.self, forKey: .ignoresCase) ?? false
@@ -646,5 +650,158 @@ enum TextSnippetSupport {
 
     static func encode(_ snippets: [TextSnippet]) -> Data? {
         try? JSONEncoder().encode(snippets)
+    }
+}
+
+/// Shared by typed expansion, library insertion and the editor. Never interprets
+/// clipboard text as markup or fetches links/resources.
+enum RichSnippetSupport {
+    static func decode(_ data: Data?, matching text: String) -> NSAttributedString? {
+        guard let data,
+              let value = try? NSKeyedUnarchiver.unarchivedObject(ofClass: NSAttributedString.self, from: data),
+              value.string == text else { return nil }
+        return value
+    }
+
+    static func encode(_ value: NSAttributedString) -> Data? {
+        // RTF import normalizes list markers on recent macOS releases, changing
+        // text ranges. Archive native attributes for exact editor round trips;
+        // generate interoperable RTF/HTML only at the clipboard boundary.
+        try? NSKeyedArchiver.archivedData(withRootObject: value, requiringSecureCoding: true)
+    }
+
+    static func expanded(_ snippet: TextSnippet, date: Date, clipboard: String?,
+                         locale: Locale = .current) -> NSAttributedString? {
+        guard let original = decode(snippet.richReplacement, matching: snippet.replacement) else { return nil }
+        let result = NSMutableAttributedString(attributedString: original)
+        // Work backwards so replacements cannot invalidate the remaining UTF-16
+        // ranges. Expand whole tokens even when formatting splits their runs.
+        let regex = try! NSRegularExpression(pattern: #"\{\{[^{}]*\}\}"#)
+        for match in regex.matches(in: original.string, range: NSRange(location: 0, length: original.length)).reversed() {
+            let token = (original.string as NSString).substring(with: match.range)
+            let value = TextSnippetSupport.expand(token, date: date, clipboard: clipboard, locale: locale)
+            if value != token {
+                let attributes = original.attributes(at: match.range.location, effectiveRange: nil)
+                result.replaceCharacters(in: match.range, with: NSAttributedString(string: value, attributes: attributes))
+            }
+        }
+        return result
+    }
+
+    /// Text-only destinations cannot draw NSTextList metadata. Materialize
+    /// markers in that flavor while RTF and HTML keep native semantic lists.
+    static func plainText(_ value: NSAttributedString) -> String {
+        let text = value.string as NSString
+        var output = ""
+        var location = 0
+        var counters: [ObjectIdentifier: Int] = [:]
+        while location < text.length {
+            let range = text.paragraphRange(for: NSRange(location: location, length: 0))
+            let style = value.attribute(.paragraphStyle, at: location, effectiveRange: nil) as? NSParagraphStyle
+            if let lists = style?.textLists, let list = lists.last {
+                let key = ObjectIdentifier(list)
+                let number = counters[key] ?? list.startingItemNumber
+                counters[key] = number + 1
+                output += String(repeating: "  ", count: max(0, lists.count - 1))
+                    + list.marker(forItemNumber: number) + " "
+            } else { counters.removeAll() }
+            output += text.substring(with: range)
+            location = NSMaxRange(range)
+        }
+        return output
+    }
+
+    static func pasteFormats(_ value: NSAttributedString, trailingText: String) -> [NSPasteboard.PasteboardType: Data] {
+        let payload = NSMutableAttributedString(attributedString: value)
+        // Delimiters must not extend a link or inherit the last word's style.
+        payload.append(NSAttributedString(string: trailingText))
+        let range = NSRange(location: 0, length: payload.length)
+        var formats: [NSPasteboard.PasteboardType: Data] = [:]
+        if let rtf = try? payload.data(from: range, documentAttributes: [
+            .documentType: NSAttributedString.DocumentType.rtf
+        ]) { formats[.rtf] = rtf }
+        if let html = try? payload.data(from: range, documentAttributes: [
+            .documentType: NSAttributedString.DocumentType.html
+        ]) { formats[.html] = html }
+        return formats
+    }
+}
+
+/// Raycast-style argument placeholders, independent of the input UI. Values
+/// are substituted as literal text and are never reinterpreted as variables.
+enum SnippetArgumentSupport {
+    struct Argument: Identifiable, Equatable {
+        let id: String
+        let name: String
+        let defaultValue: String?
+        let options: [String]
+        let password: Bool
+        var required: Bool { defaultValue == nil }
+    }
+    struct Occurrence {
+        let range: NSRange
+        let argument: Argument
+    }
+    private static let tokenRegex = try! NSRegularExpression(
+        pattern: #"(?<!\{)\{argument(?:\s+(?:name|default|options|type)="(?:\\.|[^"\\])*")*\s*\}(?!\})"#)
+    private static let propertyRegex = try! NSRegularExpression(
+        pattern: #"(name|default|options|type)="((?:\\.|[^"\\])*)""#)
+
+    static func occurrences(in text: String) -> [Occurrence] {
+        let ns = text as NSString
+        return tokenRegex.matches(in: text, range: NSRange(location: 0, length: ns.length)).enumerated().map { index, match in
+            let token = ns.substring(with: match.range)
+            let tokenNS = token as NSString
+            var fields: [String: String] = [:]
+            for property in propertyRegex.matches(in: token, range: NSRange(location: 0, length: tokenNS.length)) {
+                let raw = tokenNS.substring(with: property.range(at: 2))
+                fields[tokenNS.substring(with: property.range(at: 1))] = raw
+                    .replacingOccurrences(of: #"\""#, with: "\"")
+                    .replacingOccurrences(of: #"\\"#, with: #"\"#)
+            }
+            let name = fields["name"] ?? ""
+            let options = fields["options"]?.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } ?? []
+            return Occurrence(range: match.range, argument: Argument(
+                id: name.isEmpty ? "position:\(index)" : "name:\(name)",
+                name: name.isEmpty ? "Argument \(index + 1)" : name,
+                defaultValue: fields["default"], options: options, password: fields["type"] == "password"))
+        }
+    }
+
+    static func arguments(in text: String) -> [Argument] {
+        var seen = Set<String>()
+        return occurrences(in: text).compactMap { seen.insert($0.argument.id).inserted ? $0.argument : nil }
+    }
+
+    static func isValid(_ values: [String: String], for arguments: [Argument]) -> Bool {
+        arguments.allSatisfy { argument in
+            let value = values[argument.id] ?? argument.defaultValue ?? ""
+            return (!argument.required || !value.isEmpty)
+                && (argument.options.isEmpty || argument.options.contains(value) || (value.isEmpty && !argument.required))
+        }
+    }
+
+    static func render(_ snippet: TextSnippet, values: [String: String], date: Date, clipboard: String?) -> NSAttributedString {
+        let original = RichSnippetSupport.decode(snippet.richReplacement, matching: snippet.replacement)
+            ?? NSAttributedString(string: snippet.replacement)
+        let result = NSMutableAttributedString(attributedString: original)
+        let arguments = occurrences(in: snippet.replacement)
+        let variableRegex = try! NSRegularExpression(pattern: #"\{\{[^{}]*\}\}"#)
+        var replacements: [(NSRange, String)] = variableRegex.matches(in: original.string,
+            range: NSRange(location: 0, length: original.length))
+            .filter { match in !arguments.contains { NSIntersectionRange($0.range, match.range).length > 0 } }
+            .map { match in
+                let token = (original.string as NSString).substring(with: match.range)
+                return (match.range, TextSnippetSupport.expand(token, date: date, clipboard: clipboard))
+            }
+        for occurrence in arguments {
+            let argument = occurrence.argument
+            replacements.append((occurrence.range, values[argument.id] ?? argument.defaultValue ?? ""))
+        }
+        for (range, value) in replacements.sorted(by: { $0.0.location > $1.0.location }) {
+            let attributes = original.attributes(at: range.location, effectiveRange: nil)
+            result.replaceCharacters(in: range, with: NSAttributedString(string: value, attributes: attributes))
+        }
+        return result
     }
 }

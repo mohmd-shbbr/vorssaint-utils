@@ -1,0 +1,104 @@
+name: Personal fork — validated upstream sync
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+  push:
+    branches: [feature/rich-snippets-and-arguments]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: personal-upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: github.repository == 'mohmd-shbbr/vorssaint-utils'
+    runs-on: macos-26
+    timeout-minutes: 60
+    outputs:
+      changed: ${{ steps.merge.outputs.changed }}
+      base: ${{ steps.merge.outputs.base }}
+      candidate: ${{ steps.merge.outputs.candidate }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/rich-snippets-and-arguments
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Merge latest stable upstream release
+        id: merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=$(git rev-parse HEAD)
+          tag=$(gh api repos/vorssaint/vorssaint-utils/releases/latest --jq .tag_name)
+          [[ "$tag" =~ ^v[0-9][0-9A-Za-z.+-]*$ ]] || { echo 'Unexpected upstream tag'; exit 1; }
+          git fetch https://github.com/vorssaint/vorssaint-utils.git "refs/tags/$tag:refs/remotes/upstream/stable"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          changed=false
+          if ! git merge-base --is-ancestor refs/remotes/upstream/stable HEAD; then
+            git merge --no-ff --no-edit refs/remotes/upstream/stable || {
+              echo '::error::Upstream conflicts with the personal changes. The installed app and fork branch are unchanged.'
+              exit 1
+            }
+            changed=true
+          fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "candidate=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          echo "Latest stable upstream release: $tag" >> "$GITHUB_STEP_SUMMARY"
+      - name: Check merged app and custom behaviours
+        if: steps.merge.outputs.changed == 'true' || github.event_name != 'schedule'
+        run: |
+          python3 Tests/PersonalUpdaterTests.py
+          ./build.sh --test
+          ./build.sh
+          ./build/Vorssaint --selftest
+      - name: Package the validated merge commit
+        if: steps.merge.outputs.changed == 'true'
+        env:
+          BASE: ${{ steps.merge.outputs.base }}
+        run: git bundle create "$RUNNER_TEMP/tested-source.bundle" HEAD "^$BASE"
+      - uses: actions/upload-artifact@v4
+        if: steps.merge.outputs.changed == 'true'
+        with:
+          name: tested-upstream-merge
+          path: ${{ runner.temp }}/tested-source.bundle
+          retention-days: 7
+      - name: Summarize unchanged source
+        if: steps.merge.outputs.changed != 'true'
+        run: echo 'The fork already contains the latest stable release. No branch update is needed.' >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    needs: validate
+    if: needs.validate.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/rich-snippets-and-arguments
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: tested-upstream-merge
+      - name: Publish only the tested commit, without overwriting newer work
+        env:
+          BASE: ${{ needs.validate.outputs.base }}
+          CANDIDATE: ${{ needs.validate.outputs.candidate }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$BASE"
+          git bundle verify tested-source.bundle
+          git fetch ./tested-source.bundle HEAD
+          test "$(git rev-parse FETCH_HEAD)" = "$CANDIDATE"
+          git push origin "$CANDIDATE:refs/heads/feature/rich-snippets-and-arguments"
+          echo 'Published the validated upstream merge. Local updater agents can now build it.' >> "$GITHUB_STEP_SUMMARY"

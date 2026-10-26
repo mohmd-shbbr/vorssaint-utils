@@ -360,7 +360,8 @@ private struct SnippetEditor: View {
                             .frame(width: 340)
                         }
                     }
-                    PlainTextEditor(text: $snippet.replacement,
+                    RichSnippetEditor(text: $snippet.replacement,
+                                    rtf: $snippet.richReplacement,
                                     selectedRange: $replacementSelection,
                                     onCreate: { replacementEditor.view = $0 })
                         .frame(minHeight: 76)

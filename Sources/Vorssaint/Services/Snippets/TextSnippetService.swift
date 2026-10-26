@@ -392,9 +392,25 @@ final class TextSnippetService {
                         trailingFlags: CGEventFlags,
                         trailingText: String,
                         failureKeyCode: CGKeyCode?,
-                        failureFlags: CGEventFlags = []) -> Bool {
+                        failureFlags: CGEventFlags = [],
+                        argumentValues: [String: String]? = nil) -> Bool {
         let didExpand = expansionSoundCue()
         let post = { () -> Bool in
+            if argumentValues == nil, !SnippetArgumentSupport.arguments(in: snippet.replacement).isEmpty {
+                return SnippetArgumentPrompt.request(snippet) { [weak self] values in
+                    if let values {
+                        _ = self?.expand(snippet, deleteCount: deleteCount, typedTrigger: typedTrigger,
+                                         trailingKeyCode: trailingKeyCode, trailingFlags: trailingFlags,
+                                         trailingText: trailingText, failureKeyCode: failureKeyCode,
+                                         failureFlags: failureFlags, argumentValues: values)
+                    } else {
+                        // The trigger was never deleted; restore only the event
+                        // swallowed while opening the dialog.
+                        _ = Self.postExpansion(deleteCount: 0, typedTrigger: "", text: "",
+                                               trailingKeyCode: failureKeyCode, trailingFlags: failureFlags)
+                    }
+                }
+            }
             // Variable expansion is decided while the triggering event still
             // belongs to this callback. Only an explicit clipboard variable
             // pays for a synchronous read; the multiline write itself runs on
@@ -402,14 +418,19 @@ final class TextSnippetService {
             let clipboard = TextSnippetSupport.needsClipboard(snippet.replacement)
                 ? NSPasteboard.general.string(forType: .string)
                 : nil
-            let text = TextSnippetSupport.expand(
+            let date = Date()
+            let resolved = argumentValues.map { SnippetArgumentSupport.render(snippet, values: $0, date: date, clipboard: clipboard) }
+            let richText = resolved.flatMap { snippet.richReplacement == nil ? nil : $0 }
+                ?? RichSnippetSupport.expanded(snippet, date: date, clipboard: clipboard)
+            let text = resolved?.string ?? TextSnippetSupport.expand(
                 snippet.replacement,
-                date: Date(),
+                date: date,
                 clipboard: clipboard
             )
             return Self.postExpansion(deleteCount: deleteCount,
                                       typedTrigger: typedTrigger,
                                       text: text,
+                                      richText: richText,
                                       trailingKeyCode: trailingKeyCode,
                                       trailingFlags: trailingFlags,
                                       trailingText: trailingText,
@@ -457,6 +478,7 @@ final class TextSnippetService {
     static func postExpansion(deleteCount: Int,
                               typedTrigger: String,
                               text: String,
+                              richText: NSAttributedString? = nil,
                               trailingKeyCode: CGKeyCode?,
                               trailingFlags: CGEventFlags,
                               trailingText: String = "",
@@ -494,10 +516,12 @@ final class TextSnippetService {
             for _ in 0..<count { postKey(CGKeyCode(kVK_Delete)) }
         }
 
-        if TextSnippetSupport.requiresPaste(text) {
-            let payload = TextSnippetSupport.pastePayload(text: text, trailingText: trailingText)
+        if richText != nil || TextSnippetSupport.requiresPaste(text) {
+            let plainText = richText.map { RichSnippetSupport.plainText($0) } ?? text
+            let payload = TextSnippetSupport.pastePayload(text: plainText, trailingText: trailingText)
             return TransientPaste.shared.paste(
                 payload,
+                formats: richText.map { RichSnippetSupport.pasteFormats($0, trailingText: trailingText) } ?? [:],
                 willPostShortcut: { postDeletes() },
                 didPostShortcut: { didExpand?() },
                 didFail: {

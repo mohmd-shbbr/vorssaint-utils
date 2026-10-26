@@ -5,7 +5,7 @@ import AppKit
 import Carbon.HIToolbox
 import CoreGraphics
 
-/// Temporarily places plain text on the general pasteboard, pastes it, then
+/// Temporarily places text on the general pasteboard, pastes it, then
 /// restores the previous content if the user did not copy something else.
 /// All pasteboard reads share the app's serial lane because promised data can
 /// block while its owning process renders it.
@@ -41,6 +41,7 @@ final class TransientPaste {
 
     @discardableResult
     func paste(_ text: String,
+               formats: [NSPasteboard.PasteboardType: Data] = [:],
                willPostShortcut: (() -> Void)? = nil,
                didPostShortcut: (() -> Void)? = nil,
                didFail: (() -> Void)? = nil) -> Bool {
@@ -77,7 +78,10 @@ final class TransientPaste {
             }
 
             pasteboard.clearContents()
-            guard pasteboard.setString(text, forType: .string) else {
+            let item = NSPasteboardItem()
+            var wrote = item.setString(text, forType: .string)
+            for (type, data) in formats { wrote = item.setData(data, forType: type) && wrote }
+            guard wrote && pasteboard.writeObjects([item]) else {
                 if !snapshot.isEmpty { pasteboard.writeObjects(snapshot) }
                 DispatchQueue.main.async {
                     self.isPerforming = false

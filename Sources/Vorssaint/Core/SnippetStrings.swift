@@ -7,6 +7,12 @@ import Foundation
 /// FeatureStrings structs: memberwise init in declaration order, one static
 /// per language, all in this file.
 struct SnippetFeatureStrings {
+    let argumentTitle: String
+    let argumentHint: String
+    let argumentInvalid: String
+    let argumentInsert: String
+    let argumentField: String
+    let richTextHint: String
     let pageTitle: String
     let hubDescription: String
     let enable: String
@@ -98,6 +104,12 @@ extension FeatureStrings {
 
 extension SnippetFeatureStrings {
     static let ko = SnippetFeatureStrings(
+        argumentTitle: "스니펫 인수",
+        argumentHint: "삽입하기 전에 값을 입력하세요. 필수 항목은 *로 표시됩니다.",
+        argumentInvalid: "필수 항목을 입력하고 각 목록에서 값을 선택하세요.",
+        argumentInsert: "삽입",
+        argumentField: "인수",
+        richTextHint: "서식 있는 텍스트를 붙여넣거나 텍스트를 선택하고 도구 모음을 사용하세요. + 버튼으로 인수를 삽입합니다.",
         pageTitle: "텍스트 스니펫",
         hubDescription: "짧은 트리거를 전체 텍스트로 확장합니다",
         enable: "입력 중 스니펫 확장",
@@ -165,6 +177,12 @@ extension SnippetFeatureStrings {
         soundUnavailable: "사용할 수 없는 소리"
     )
     static let uk = SnippetFeatureStrings(
+        argumentTitle: "Аргументи сніпета",
+        argumentHint: "Введіть значення перед вставленням. Обов’язкові поля позначено *.",
+        argumentInvalid: "Заповніть обов’язкові поля та виберіть значення з кожного списку.",
+        argumentInsert: "Вставити",
+        argumentField: "Аргумент",
+        richTextHint: "Вставте форматований текст або виділіть текст і скористайтеся панеллю. Кнопка + додає аргумент.",
         pageTitle: "Текстові сніпети",
         hubDescription: "Короткі тригери розгортаються в повний текст",
         enable: "Розгортати сніпети під час набору",
@@ -235,6 +253,12 @@ extension SnippetFeatureStrings {
 
 extension SnippetFeatureStrings {
     static let enUS = SnippetFeatureStrings(
+        argumentTitle: "Snippet arguments",
+        argumentHint: "Fill in the values before inserting. Required fields are marked *.",
+        argumentInvalid: "Complete the required fields and choose a value from each list.",
+        argumentInsert: "Insert",
+        argumentField: "Argument",
+        richTextHint: "Paste formatted text, or select text and use the toolbar. The + button inserts an argument placeholder.",
         pageTitle: "Text snippets",
         hubDescription: "Short triggers expand into full text",
         enable: "Expand snippets while typing",
@@ -303,6 +327,12 @@ extension SnippetFeatureStrings {
     )
 
     static let ptBR = SnippetFeatureStrings(
+        argumentTitle: "Argumentos do snippet",
+        argumentHint: "Preencha os valores antes de inserir. Campos obrigatórios têm *.",
+        argumentInvalid: "Preencha os campos obrigatórios e escolha um valor em cada lista.",
+        argumentInsert: "Inserir",
+        argumentField: "Argumento",
+        richTextHint: "Cole texto formatado ou selecione texto e use a barra. O botão + insere um argumento.",
         pageTitle: "Snippets de texto",
         hubDescription: "Gatilhos curtos viram textos completos",
         enable: "Expandir snippets enquanto digita",
@@ -371,6 +401,12 @@ extension SnippetFeatureStrings {
     )
 
     static let tr = SnippetFeatureStrings(
+        argumentTitle: "Parçacık bağımsız değişkenleri",
+        argumentHint: "Eklemeden önce değerleri doldurun. Zorunlu alanlar * ile işaretlidir.",
+        argumentInvalid: "Zorunlu alanları doldurun ve her listeden bir değer seçin.",
+        argumentInsert: "Ekle",
+        argumentField: "Bağımsız değişken",
+        richTextHint: "Biçimli metin yapıştırın veya metni seçip araç çubuğunu kullanın. + düğmesi bir bağımsız değişken ekler.",
         pageTitle: "Metin parçacıkları",
         hubDescription: "Kısa tetikleyiciler tam metne dönüşür",
         enable: "Yazarken parçacıkları genişlet",
@@ -439,6 +475,12 @@ extension SnippetFeatureStrings {
     )
 
     static let ru = SnippetFeatureStrings(
+        argumentTitle: "Аргументы сниппета",
+        argumentHint: "Введите значения перед вставкой. Обязательные поля отмечены *.",
+        argumentInvalid: "Заполните обязательные поля и выберите значение из каждого списка.",
+        argumentInsert: "Вставить",
+        argumentField: "Аргумент",
+        richTextHint: "Вставьте форматированный текст или выделите текст и используйте панель. Кнопка + добавляет аргумент.",
         pageTitle: "Текстовые сниппеты",
         hubDescription: "Короткие триггеры превращаются в готовый текст",
         enable: "Разворачивать сниппеты при вводе",
@@ -507,6 +549,12 @@ extension SnippetFeatureStrings {
     )
 
     static let es = SnippetFeatureStrings(
+        argumentTitle: "Argumentos del fragmento",
+        argumentHint: "Introduce los valores antes de insertar. Los campos obligatorios llevan *.",
+        argumentInvalid: "Completa los campos obligatorios y elige un valor de cada lista.",
+        argumentInsert: "Insertar",
+        argumentField: "Argumento",
+        richTextHint: "Pega texto con formato o selecciona texto y usa la barra. El botón + inserta un argumento.",
         pageTitle: "Fragmentos de texto",
         hubDescription: "Disparadores cortos se convierten en texto completo",
         enable: "Expandir fragmentos al escribir",
@@ -575,6 +623,12 @@ extension SnippetFeatureStrings {
     )
 
     static let sk = SnippetFeatureStrings(
+        argumentTitle: "Argumenty úryvku",
+        argumentHint: "Pred vložením vyplňte hodnoty. Povinné polia sú označené *.",
+        argumentInvalid: "Vyplňte povinné polia a vyberte hodnotu z každého zoznamu.",
+        argumentInsert: "Vložiť",
+        argumentField: "Argument",
+        richTextHint: "Vložte formátovaný text alebo označte text a použite panel. Tlačidlo + vloží argument.",
         pageTitle: "Textové fragmenty",
         hubDescription: "Krátke spúšťače sa rozbalia na celý text",
         enable: "Rozbaľovať fragmenty počas písania",
@@ -643,6 +697,12 @@ extension SnippetFeatureStrings {
     )
 
     static let de = SnippetFeatureStrings(
+        argumentTitle: "Snippet-Argumente",
+        argumentHint: "Werte vor dem Einfügen ausfüllen. Pflichtfelder sind mit * markiert.",
+        argumentInvalid: "Pflichtfelder ausfüllen und in jeder Liste einen Wert auswählen.",
+        argumentInsert: "Einfügen",
+        argumentField: "Argument",
+        richTextHint: "Formatierten Text einfügen oder Text markieren und die Werkzeugleiste verwenden. + fügt ein Argument ein.",
         pageTitle: "Textbausteine",
         hubDescription: "Kurze Kürzel werden zu ganzem Text",
         enable: "Bausteine beim Tippen ausschreiben",
@@ -711,6 +771,12 @@ extension SnippetFeatureStrings {
     )
 
     static let fr = SnippetFeatureStrings(
+        argumentTitle: "Arguments de l’extrait",
+        argumentHint: "Saisissez les valeurs avant l’insertion. Les champs obligatoires portent *.",
+        argumentInvalid: "Remplissez les champs obligatoires et choisissez une valeur dans chaque liste.",
+        argumentInsert: "Insérer",
+        argumentField: "Argument",
+        richTextHint: "Collez du texte mis en forme ou sélectionnez du texte et utilisez la barre. Le bouton + insère un argument.",
         pageTitle: "Extraits de texte",
         hubDescription: "Des déclencheurs courts deviennent du texte complet",
         enable: "Développer les extraits pendant la frappe",
@@ -779,6 +845,12 @@ extension SnippetFeatureStrings {
     )
 
     static let it = SnippetFeatureStrings(
+        argumentTitle: "Argomenti del frammento",
+        argumentHint: "Inserisci i valori prima di incollare. I campi obbligatori sono segnati con *.",
+        argumentInvalid: "Compila i campi obbligatori e scegli un valore da ogni elenco.",
+        argumentInsert: "Inserisci",
+        argumentField: "Argomento",
+        richTextHint: "Incolla testo formattato o seleziona il testo e usa la barra. Il pulsante + inserisce un argomento.",
         pageTitle: "Frammenti di testo",
         hubDescription: "Trigger brevi diventano testo completo",
         enable: "Espandi i frammenti mentre scrivi",
@@ -847,6 +919,12 @@ extension SnippetFeatureStrings {
     )
 
     static let ja = SnippetFeatureStrings(
+        argumentTitle: "スニペットの引数",
+        argumentHint: "挿入する前に値を入力してください。必須項目には * が付きます。",
+        argumentInvalid: "必須項目を入力し、各リストから値を選んでください。",
+        argumentInsert: "挿入",
+        argumentField: "引数",
+        richTextHint: "書式付きテキストを貼り付けるか、テキストを選択してツールバーを使います。+ ボタンで引数を挿入します。",
         pageTitle: "テキストスニペット",
         hubDescription: "短いトリガーが文章に展開されます",
         enable: "入力中にスニペットを展開",
@@ -915,6 +993,12 @@ extension SnippetFeatureStrings {
     )
 
     static let zhHans = SnippetFeatureStrings(
+        argumentTitle: "片段参数",
+        argumentHint: "插入前请填写各项值。必填项标有 *。",
+        argumentInvalid: "请填写必填项，并从每个列表中选择一个值。",
+        argumentInsert: "插入",
+        argumentField: "参数",
+        richTextHint: "粘贴带格式的文本，或选择文本后使用工具栏。+ 按钮可插入参数。",
         pageTitle: "文本片段",
         hubDescription: "短触发词展开为完整文本",
         enable: "输入时展开片段",
@@ -983,6 +1067,12 @@ extension SnippetFeatureStrings {
     )
 
     static let zhTW = SnippetFeatureStrings(
+        argumentTitle: "片段參數",
+        argumentHint: "插入前請填寫各項值。必填項標有 *。",
+        argumentInvalid: "請填寫必填項，並從每個清單中選擇一個值。",
+        argumentInsert: "插入",
+        argumentField: "參數",
+        richTextHint: "貼上帶格式的文字，或選取文字後使用工具列。+ 按鈕可插入參數。",
         pageTitle: "文字片段",
         hubDescription: "簡短觸發詞展開為完整文字",
         enable: "輸入時展開片段",
@@ -1051,6 +1141,12 @@ extension SnippetFeatureStrings {
     )
 
     static let zhHK = SnippetFeatureStrings(
+        argumentTitle: "片段參數",
+        argumentHint: "插入前請填好各項值。必填項標有 *。",
+        argumentInvalid: "請填好必填項，並喺每個清單揀一個值。",
+        argumentInsert: "插入",
+        argumentField: "參數",
+        richTextHint: "貼上有格式嘅文字，或者揀文字再用工具列。+ 按鈕可以插入參數。",
         pageTitle: "文字片段",
         hubDescription: "簡短觸發詞展開為完整文字",
         enable: "輸入時展開片段",

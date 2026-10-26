@@ -27,6 +27,39 @@ enum SettingsFeatureTests {
         // MARK: Settings backup
 
         let backupKeys = SettingsBackupSupport.exportKeys()
+
+        // Exercise the actual portable file envelope, not just snippet JSON.
+        var richSnippet = TextSnippet()
+        richSnippet.name = "Admin link"
+        richSnippet.trigger = ";admin"
+        richSnippet.folder = "Work"
+        richSnippet.replacement = #"https://portal{argument name="DC" options=".com,.eu"}.example.com/admin/"#
+        let richBody = NSMutableAttributedString(string: richSnippet.replacement)
+        richBody.addAttributes([.font: NSFont.boldSystemFont(ofSize: 13), .underlineStyle: 1],
+                               range: NSRange(location: 0, length: richBody.length))
+        richSnippet.richReplacement = RichSnippetSupport.encode(richBody)
+        let snippetData = TextSnippetSupport.encode([richSnippet])!
+        let richBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
+            switch key {
+            case DefaultsKey.textSnippets: return snippetData
+            case DefaultsKey.textSnippetsEnabled: return true
+            case DefaultsKey.snippetLibraryEnabled: return true
+            case DefaultsKey.dockClickHide: return true
+            default: return nil
+            }
+        }
+        let backupFile = try! PropertyListSerialization.data(fromPropertyList: richBackup, format: .xml, options: 0)
+        let importedPayload = try! PropertyListSerialization.propertyList(from: backupFile, options: [], format: nil) as! [String: Any]
+        let imported = SettingsBackupSupport.sanitizedSettings(from: importedPayload)!
+        let restoredSnippets = TextSnippetSupport.decode(imported[DefaultsKey.textSnippets] as? Data)
+        suite.expect(restoredSnippets == [richSnippet], "portable settings file restores snippet triggers, folders, arguments, and rich text exactly")
+        let restoredBody = restoredSnippets.first.flatMap { RichSnippetSupport.decode($0.richReplacement, matching: $0.replacement) }
+        suite.expect(restoredBody?.attribute(.underlineStyle, at: 0, effectiveRange: nil) as? Int == 1,
+                     "native rich-text attributes survive the full export/import file format")
+        suite.expect(imported[DefaultsKey.textSnippetsEnabled] as? Bool == true
+                     && imported[DefaultsKey.snippetLibraryEnabled] as? Bool == true
+                     && imported[DefaultsKey.dockClickHide] as? Bool == true,
+                     "snippet switches and other app configuration restore together from one file")
         for reserved in [false, true] {
             let backup = SettingsBackupSupport.payload(appVersion: "test") { key in
                 key == DefaultsKey.windowReserveStageManagerSpace ? reserved : nil

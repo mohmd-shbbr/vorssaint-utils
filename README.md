@@ -1,3 +1,7 @@
+> **Personal fork:** adds rich-text snippets and Raycast-style argument fields, including dropdowns.
+> [Usage, backup and restore](docs/RICH-TEXT-SNIPPETS.md) · [Automatic upstream updates](docs/PERSONAL-UPDATES.md)
+> The original Vorssaint project and its documentation follow below.
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/logo-dark.svg">
