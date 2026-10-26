@@ -22,7 +22,7 @@ struct TextSnippet: Codable, Identifiable, Equatable {
     var replacement = ""
     /// An optional attributed-string archive; older plain snippets remain readable.
     var richReplacement: Data? = nil
-    var expansion = Expansion.afterDelimiter
+    var expansion = Expansion.immediate
     var enabled = true
     var ignoresCase = false
     /// Plain folder name for the library; empty means no folder. Folders are
@@ -60,6 +60,16 @@ extension TextSnippet {
 /// harness can pin the behavior down.
 enum TextSnippetSupport {
     /// Keystrokes the buffer remembers; longer triggers cannot match.
+    // Only a template token creates this internal marker; clipboard/argument
+    // values are inserted afterward and are never interpreted as templates.
+    static let cursorMarker = "\u{E000}VorssaintCursor\u{E001}"
+
+    static func cursorPayload(_ text: String) -> (text: String, moveLeft: Int) {
+        guard let range = text.range(of: cursorMarker) else { return (text, 0) }
+        return (text.replacingOccurrences(of: cursorMarker, with: ""),
+                text[range.upperBound...].replacingOccurrences(of: cursorMarker, with: "").count)
+    }
+
     static let bufferLimit = 64
     static let maxTriggerLength = 40
 
@@ -245,6 +255,7 @@ enum TextSnippetSupport {
         let dateText = dateFormatter.string(from: date)
         let timeText = timeFormatter.string(from: date)
         let expanded = replacement
+            .replacingOccurrences(of: "{{cursor}}", with: cursorMarker)
             .replacingOccurrences(of: "{{date}}", with: dateText)
             .replacingOccurrences(of: "{{time}}", with: timeText)
             .replacingOccurrences(of: "{{datetime}}", with: "\(dateText) \(timeText)")

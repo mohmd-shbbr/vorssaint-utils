@@ -485,6 +485,15 @@ final class TextSnippetService {
                               failureKeyCode: CGKeyCode? = nil,
                               failureFlags: CGEventFlags = [],
                               didExpand: (() -> Void)? = nil) -> Bool {
+        let cursor = TextSnippetSupport.cursorPayload(text)
+        let text = cursor.text
+        let richText = richText.map { value -> NSAttributedString in
+            let result = NSMutableAttributedString(attributedString: value)
+            while let range = result.string.range(of: TextSnippetSupport.cursorMarker) {
+                result.deleteCharacters(in: NSRange(range, in: result.string))
+            }
+            return result
+        }
         let source = CGEventSource(stateID: .hidSystemState)
         source?.userData = syntheticMarker
 
@@ -523,7 +532,10 @@ final class TextSnippetService {
                 payload,
                 formats: richText.map { RichSnippetSupport.pasteFormats($0, trailingText: trailingText) } ?? [:],
                 willPostShortcut: { postDeletes() },
-                didPostShortcut: { didExpand?() },
+                didPostShortcut: {
+                    for _ in 0..<cursor.moveLeft { postKey(CGKeyCode(kVK_LeftArrow)) }
+                    didExpand?()
+                },
                 didFail: {
                     if let failureKeyCode { postKey(failureKeyCode, flags: failureFlags) }
                 }
@@ -555,6 +567,7 @@ final class TextSnippetService {
         if let trailingKeyCode {
             postKey(trailingKeyCode, flags: trailingFlags)
         }
+        for _ in 0..<cursor.moveLeft { postKey(CGKeyCode(kVK_LeftArrow)) }
         didExpand?()
         return true
     }

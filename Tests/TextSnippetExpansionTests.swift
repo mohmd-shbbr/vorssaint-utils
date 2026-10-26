@@ -93,6 +93,20 @@ enum TextSnippetExpansionTests {
             ownWindowIsKey = false
         }
         defer { reset() }
+        let cursorTemplate = "Hi {{cursor}}👩🏽‍💻!"
+        let cursorExpanded = TextSnippetSupport.expand(cursorTemplate, date: Date(), clipboard: nil)
+        let cursorPayload = TextSnippetSupport.cursorPayload(cursorExpanded)
+        suite.expect(cursorPayload.text == "Hi 👩🏽‍💻!" && cursorPayload.moveLeft == 2,
+                     "cursor positions count composed characters after the placeholder")
+        let literalClipboard = TextSnippetSupport.expand("{{clipboard}}", date: Date(), clipboard: "{{cursor}}")
+        suite.expect(TextSnippetSupport.cursorPayload(literalClipboard).text == "{{cursor}}",
+                     "clipboard values do not create cursor placeholders")
+        reset()
+        _ = postExpansion(deleteCount: 0, typedTrigger: "", text: cursorExpanded,
+                          trailingKeyCode: nil, trailingFlags: [])
+        suite.expect(log == ["Hi 👩🏽‍💻!", "key 123", "key 123"],
+                     "typed cursor snippets omit the marker and move to the requested position")
+
         let completion = (range: NSRange(location: 6, length: 2), textLength: 8)
         let deletes = { (count: Int) in Array(repeating: "⌫", count: count) }
 

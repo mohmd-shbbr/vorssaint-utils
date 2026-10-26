@@ -120,3 +120,9 @@ field receives keyboard focus; Tab moves between inputs, Return submits, and
 Escape cancels. Required fields are validated before insertion. Focus returns
 to the original application, and insertion is skipped if that application is no
 longer frontmost or secure input has begun.
+
+New snippets expand immediately by default. The editor still offers expansion
+after Space, Tab, or Return for users who prefer a delimiter.
+
+`{{cursor}}` places the insertion point inside the expanded text. Clipboard
+values and argument values remain literal and do not create cursor markers.
