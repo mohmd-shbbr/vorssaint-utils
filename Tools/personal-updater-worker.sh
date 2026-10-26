@@ -8,7 +8,7 @@ STATE_DIR="$3"
 CHECKOUT="$STATE_DIR/source"
 if [[ -z "${VORSSAINT_UPDATER_APP_PATH:-}" ]]; then
     VORSSAINT_UPDATER_APP_PATH="$HOME/Applications/Vorssaint (Developer).app"
-    if [[ -w /Applications ]]; then VORSSAINT_UPDATER_APP_PATH='/Applications/Vorssaint (Developer).app'; fi
+    if [[ -w /Applications || ( -d "/Applications/Vorssaint (Developer).app/Contents" && -w "/Applications/Vorssaint (Developer).app" ) ]]; then VORSSAINT_UPDATER_APP_PATH='/Applications/Vorssaint (Developer).app'; fi
 fi
 APP_PATH="$VORSSAINT_UPDATER_APP_PATH"
 export GIT_TERMINAL_PROMPT=0

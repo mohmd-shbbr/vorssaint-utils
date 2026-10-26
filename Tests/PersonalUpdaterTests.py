@@ -57,6 +57,31 @@ codesign --force --sign - "$app"
     subprocess.run(['codesign', '--verify', '--deep', '--strict', str(app)], check=True)
     original = (app / 'Contents/MacOS/Test').read_bytes()
 
+    # Expired admin membership: parent is read-only, existing bundle is owned
+    # by the user. Update Contents in place and retain a valid signature.
+    locked_parent = root / 'Applications'
+    locked_parent.mkdir()
+    owned_app = locked_parent / 'Owned.app'
+    shutil.copytree(app, owned_app)
+    candidate = root / 'Candidate.app'
+    shutil.copytree(app, candidate)
+    locked_parent.chmod(0o555)
+    try:
+        assert not os.access(locked_parent, os.W_OK)
+        installed = subprocess.run(['/bin/bash', str(TOOLS / 'personal-install.sh'),
+                                    str(candidate), str(owned_app)], capture_output=True, text=True)
+        assert installed.returncode == 0, installed.stdout + installed.stderr
+        subprocess.run(['codesign', '--verify', '--deep', '--strict', str(owned_app)], check=True)
+        assert sorted(p.name for p in owned_app.iterdir()) == ['Contents']
+        with (candidate / 'Contents/MacOS/Test').open('ab') as stream:
+            stream.write(b'damaged')
+        rejected = subprocess.run(['/bin/bash', str(TOOLS / 'personal-install.sh'),
+                                   str(candidate), str(owned_app)], capture_output=True, text=True)
+        assert rejected.returncode != 0
+        assert (owned_app / 'Contents/MacOS/Test').read_bytes() == original
+    finally:
+        locked_parent.chmod(0o755)
+
     # Same source and an installed app must not build or restart anything.
     log.write_text('')
     unchanged = subprocess.run(command, env=env, capture_output=True, text=True)

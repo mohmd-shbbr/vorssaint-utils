@@ -18,7 +18,7 @@ case "${1:---run}" in
     cp "$(dirname "$0")/personal-updater-worker.sh" "$STATE_DIR/personal-updater-worker.sh"
     chmod 700 "$STATE_DIR/updater.sh"
     app_path="$HOME/Applications/Vorssaint (Developer).app"
-    if [[ -w /Applications ]]; then app_path='/Applications/Vorssaint (Developer).app'; fi
+    if [[ -w /Applications || ( -d "/Applications/Vorssaint (Developer).app/Contents" && -w "/Applications/Vorssaint (Developer).app" ) ]]; then app_path='/Applications/Vorssaint (Developer).app'; fi
     /usr/bin/python3 - "$AGENT_FILE" "$STATE_DIR/updater.sh" "$HOME/Library/Logs/VorssaintPersonalUpdater" "$LABEL" "$app_path" <<'PY'
 import plistlib,sys
 path,script,logs,label,app_path=sys.argv[1:]
