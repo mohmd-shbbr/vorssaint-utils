@@ -6,12 +6,14 @@ let output = CommandLine.arguments[1]
 let directory = URL(fileURLWithPath: output)
 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 func png(_ pixels: Int, glyph: Bool) -> Data {
-    let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: pixels, pixelsHigh: pixels,
+    let height = glyph ? pixels * 20 / 26 : pixels
+    let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: pixels, pixelsHigh: height,
         bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
         colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
-    let n = CGFloat(pixels)
+    let n = CGFloat(height)
+    if glyph { NSGraphicsContext.current?.cgContext.translateBy(x: CGFloat(pixels - height) / 2, y: 0) }
     if !glyph {
         NSColor(calibratedRed: 0.08, green: 0.15, blue: 0.23, alpha: 1).setFill()
         NSBezierPath(roundedRect: NSRect(x: n * 0.07, y: n * 0.07, width: n * 0.86, height: n * 0.86),
@@ -41,8 +43,8 @@ for size in [16, 32, 128, 256, 512] {
     }
 }
 let parent = directory.deletingLastPathComponent()
-try png(22, glyph: true).write(to: parent.appendingPathComponent("MenuBarIcon.png"))
-try png(44, glyph: true).write(to: parent.appendingPathComponent("MenuBarIcon@2x.png"))
+try png(26, glyph: true).write(to: parent.appendingPathComponent("MenuBarIcon.png"))
+try png(52, glyph: true).write(to: parent.appendingPathComponent("MenuBarIcon@2x.png"))
 try png(256, glyph: false).write(to: parent.appendingPathComponent("BrandMark.png"))
 let process = Process()
 process.executableURL = URL(fileURLWithPath: "/usr/bin/iconutil")
