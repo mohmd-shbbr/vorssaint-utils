@@ -349,20 +349,13 @@ enum UtilitiesFeatureTests {
         suite.expect(TextSnippetSupport.expansionMatch(buffer: "x ;emai", expansion: .afterDelimiter,
                                                        snippets: [email], swallowed: "") == nil,
                "a half-typed trigger hands nothing to expand")
-        // The service hands each typing path its own swallowed key: none
-        // after a delimiter, the key that completed an immediate trigger.
-        let snippetServiceCode = ((try? String(
-            contentsOfFile: "Sources/Vorssaint/Services/Snippets/TextSnippetService.swift",
-            encoding: .utf8)) ?? "")
-            .components(separatedBy: "\n")
-            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-            .joined(separator: " ")
-            .components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ")
-        suite.expect(snippetServiceCode.contains(
-                "expansion: .afterDelimiter, snippets: delimiterSnippets, swallowed: \"\")")
-                && snippetServiceCode.contains(
-                "expansion: .immediate, snippets: immediateSnippets, swallowed: typed)"),
-               "each typing path hands the match that sets its backspaces the key it swallowed")
+        // Delayed expansion lets the whole trigger reach the field, including
+        // the final character, before computing its backspaces.
+        var delayedMatch = SnippetExpansionDebounce()
+        let delayedTicket = delayedMatch.update(buffer: "xgitgrav", snippets: [graph])
+        suite.expect(delayedTicket?.typedTrigger == "gitgrav"
+                && delayedTicket?.typedTrigger.count == graph.trigger.count,
+               "delayed expansion deletes the complete typed trigger and leaves its prefix intact")
 
         // Custom date patterns after a colon (issue #348)
         let enUS = Locale(identifier: "en_US")

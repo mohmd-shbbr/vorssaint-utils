@@ -121,7 +121,10 @@ Escape cancels. Required fields are validated before insertion. Focus returns
 to the original application, and insertion is skipped if that application is no
 longer frontmost or secure input has begun.
 
-New snippets expand immediately by default. The editor still offers expansion
+New snippets expand after a one-second typing pause by default. Typing more
+characters replaces or cancels the pending match, allowing overlapping triggers
+such as `;reply` and `;reply2`. Cursor movement, clicks and app switches cancel
+the pending expansion. The editor still offers expansion
 after Space, Tab, or Return for users who prefer a delimiter.
 
 `{{cursor}}` places the insertion point inside the expanded text. Clipboard

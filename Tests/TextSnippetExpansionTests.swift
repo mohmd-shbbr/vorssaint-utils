@@ -93,6 +93,31 @@ enum TextSnippetExpansionTests {
             ownWindowIsKey = false
         }
         defer { reset() }
+        var short = TextSnippet()
+        short.trigger = ";reply"
+        var longer = TextSnippet()
+        longer.trigger = ";reply2"
+        var debounce = SnippetExpansionDebounce()
+        let shortTicket = debounce.update(buffer: ";reply", snippets: [short, longer])!
+        let longTicket = debounce.update(buffer: ";reply2", snippets: [short, longer])!
+        suite.expect(debounce.take(shortTicket) == nil,
+                     "typing a longer trigger cancels the shorter trigger deadline")
+        suite.expect(debounce.take(longTicket)?.id == longer.id,
+                     "the longer snippet wins after typing pauses")
+        suite.expect(debounce.take(longTicket) == nil,
+                     "a delayed expansion runs only once")
+        let cancelled = debounce.update(buffer: ";reply", snippets: [short, longer])!
+        debounce.cancel()
+        suite.expect(debounce.take(cancelled) == nil,
+                     "focus changes, cursor moves and shortcuts cancel pending expansion")
+        let continued = debounce.update(buffer: ";reply", snippets: [short, longer])!
+        _ = debounce.update(buffer: ";replyx", snippets: [short, longer])
+        suite.expect(debounce.take(continued) == nil,
+                     "continuing with nonmatching text leaves the typed trigger unchanged")
+        let edited = debounce.update(buffer: ";reply", snippets: [short, longer])!
+        suite.expect(debounce.take(edited)?.id == short.id && SnippetExpansionDebounce.delay == 1,
+                     "a complete shorter trigger expands after the one-second pause")
+
         let cursorTemplate = "Hi {{cursor}}👩🏽‍💻!"
         let cursorExpanded = TextSnippetSupport.expand(cursorTemplate, date: Date(), clipboard: nil)
         let cursorPayload = TextSnippetSupport.cursorPayload(cursorExpanded)

@@ -846,3 +846,35 @@ extension SnippetArgumentSupport {
         }
     }
 }
+
+/// A new keystroke or focus change invalidates an earlier expansion deadline.
+/// Tickets are consumed once, so a shorter trigger cannot win after a longer
+/// trigger has been typed during the pause.
+struct SnippetExpansionDebounce {
+    static let delay: TimeInterval = 1
+    private var revision: UInt64 = 0
+    private var pending: TextSnippet?
+
+    struct Ticket {
+        let revision: UInt64
+        let typedTrigger: String
+    }
+
+    mutating func cancel() {
+        revision &+= 1
+        pending = nil
+    }
+
+    mutating func update(buffer: String, snippets: [TextSnippet]) -> Ticket? {
+        cancel()
+        guard let snippet = TextSnippetSupport.match(buffer: buffer, expansion: .immediate, snippets: snippets) else { return nil }
+        pending = snippet
+        return Ticket(revision: revision, typedTrigger: String(buffer.suffix(snippet.trigger.count)))
+    }
+
+    mutating func take(_ ticket: Ticket) -> TextSnippet? {
+        guard ticket.revision == revision, let snippet = pending else { return nil }
+        cancel()
+        return snippet
+    }
+}

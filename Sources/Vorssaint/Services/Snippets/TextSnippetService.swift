@@ -28,6 +28,7 @@ final class TextSnippetService {
     private var activationObserver: NSObjectProtocol?
     private let inputLock = NSLock()
     private var buffer = ""
+    private var expansionDebounce = SnippetExpansionDebounce()
     private var libraryVisible = false
     private var commandBarVisible = false
     /// Registered once when the preferences change, so no expansion pays
@@ -107,14 +108,14 @@ final class TextSnippetService {
     func setLibraryVisible(_ visible: Bool) {
         inputLock.withLock {
             libraryVisible = visible
-            if visible { buffer = "" }
+            if visible { buffer = ""; expansionDebounce.cancel() }
         }
     }
 
     func setCommandBarVisible(_ visible: Bool) {
         inputLock.withLock {
             commandBarVisible = visible
-            if visible { buffer = "" }
+            if visible { buffer = ""; expansionDebounce.cancel() }
         }
     }
 
@@ -123,6 +124,8 @@ final class TextSnippetService {
         let all = TextSnippetSupport.decode(
             UserDefaults.standard.data(forKey: DefaultsKey.textSnippets))
         inputLock.withLock {
+            expansionDebounce.cancel()
+            buffer = ""
             immediateSnippets = all.filter { $0.enabled && $0.expansion == .immediate }
             delimiterSnippets = all.filter { $0.enabled && $0.expansion == .afterDelimiter }
         }
@@ -259,7 +262,7 @@ final class TextSnippetService {
     }
 
     private func resetBuffer() {
-        inputLock.withLock { buffer = "" }
+        inputLock.withLock { buffer = ""; expansionDebounce.cancel() }
     }
 
     // MARK: - Tap
@@ -291,6 +294,9 @@ final class TextSnippetService {
         guard event.getIntegerValueField(.eventSourceUserData) != Self.syntheticMarker else {
             return Unmanaged.passUnretained(event)
         }
+        // Every real key cancels the previous deadline, including edits and
+        // shortcuts. Synthetic expansion events do not affect the timer.
+        inputLock.withLock { expansionDebounce.cancel() }
         // Password fields: the system enables secure input; typing there must
         // stay exactly as typed, and the buffer must not remember any of it.
         guard !IsSecureEventInputEnabled() else {
@@ -315,6 +321,7 @@ final class TextSnippetService {
             inputLock.withLock {
                 if !buffer.isEmpty { buffer.removeLast() }
             }
+            scheduleImmediateExpansion()
             return Unmanaged.passUnretained(event)
         case kVK_LeftArrow, kVK_RightArrow, kVK_UpArrow, kVK_DownArrow, kVK_Escape,
              kVK_Home, kVK_End, kVK_PageUp, kVK_PageDown, kVK_ForwardDelete:
@@ -356,30 +363,40 @@ final class TextSnippetService {
             return Unmanaged.passUnretained(event)
         }
 
-        let matched = inputLock.withLock { () -> (snippet: TextSnippet, deleteCount: Int, typedTrigger: String)? in
+        inputLock.withLock {
             buffer = TextSnippetSupport.bufferAppending(buffer, typed: typed)
-            let match = TextSnippetSupport.expansionMatch(buffer: buffer,
-                                                          expansion: .immediate,
-                                                          snippets: immediateSnippets,
-                                                          swallowed: typed)
-            if match != nil { buffer = "" }
-            return match
         }
-        if let matched {
-            // Suppress the final trigger event once the replacement path has
-            // accepted it. A busy transient paste fails open to normal typing.
-            return expand(matched.snippet,
-                          deleteCount: matched.deleteCount,
-                          typedTrigger: matched.typedTrigger,
-                          trailingKeyCode: nil,
-                          trailingFlags: [],
-                          trailingText: "",
-                          failureKeyCode: CGKeyCode(keyCode),
-                          failureFlags: event.flags)
-                ? nil
-                : Unmanaged.passUnretained(event)
-        }
+        scheduleImmediateExpansion()
+        // The entire trigger reaches the target field while the timer runs.
         return Unmanaged.passUnretained(event)
+    }
+
+    private func scheduleImmediateExpansion() {
+        let ticket = inputLock.withLock {
+            expansionDebounce.update(buffer: buffer, snippets: immediateSnippets)
+        }
+        guard let ticket else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let target = NSWorkspace.shared.frontmostApplication else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + SnippetExpansionDebounce.delay) { [weak self] in
+                guard let self, self.isRunning, SessionActivity.shared.isActive,
+                      !IsSecureEventInputEnabled(), !Self.ownWindowIsKey,
+                      NSWorkspace.shared.frontmostApplication?.processIdentifier == target.processIdentifier,
+                      CGEventSource.flagsState(.combinedSessionState)
+                        .intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]).isEmpty else { return }
+                let snippet = self.inputLock.withLock { () -> TextSnippet? in
+                    guard !self.libraryVisible, !self.commandBarVisible,
+                          let snippet = self.expansionDebounce.take(ticket) else { return nil }
+                    self.buffer = ""
+                    return snippet
+                }
+                guard let snippet else { return }
+                _ = self.expand(snippet, deleteCount: ticket.typedTrigger.count,
+                                typedTrigger: ticket.typedTrigger,
+                                trailingKeyCode: nil, trailingFlags: [], trailingText: "",
+                                failureKeyCode: nil)
+            }
+        }
     }
 
     // MARK: - Expansion
