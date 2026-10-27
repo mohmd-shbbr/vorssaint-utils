@@ -1186,6 +1186,28 @@ enum CommandBarFeatureTests {
                      && CommandBarSearch.colorPreviewIndex(rowTitles: ["#CAFE"], query: "#cafe") == 1,
                      "a row that spells the typed color keeps Return, the swatch sits under it")
 
+        // Explicit currency parsing must not steal unit or ordinary searches.
+        for (text, amount, base, quote) in [
+            ("100 USD to INR", 100.0, "USD", "INR"),
+            ("19 USD", 19, "USD", "INR"),
+            ("19 USD to EUR", 19, "USD", "EUR"),
+            ("€50", 50, "EUR", "INR"),
+            ("19 INR", 19, "INR", "INR"),
+            ("€50 in USD", 50, "EUR", "USD"),
+            ("500 rupees to euros", 500, "INR", "EUR"),
+            ("$1,234.50 to inr", 1234.5, "USD", "INR"),
+            ("-25 gbp into jpy", -25, "GBP", "JPY"),
+            ("₹0 to USD", 0, "INR", "USD")
+        ] {
+            let parsed = CommandBarCurrency.parse(text)
+            suite.expect(parsed?.amount == amount && parsed?.base == base && parsed?.quote == quote,
+                         "currency parses " + text)
+        }
+        for text in ["100 km to mi", "19", "19 USD to", "19 USD to EU", "100 to INR", "1,23 USD to INR",
+                     "$100 EUR to INR", "100 XYZ to INR", "find dollars", "100 USD to INR extra"] {
+            suite.expect(CommandBarCurrency.parse(text) == nil, "currency rejects " + text)
+        }
+
         // MARK: Command bar unit conversion
 
         func units(_ input: String) -> String? {

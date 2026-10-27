@@ -1661,6 +1661,16 @@ enum CommandBarCatalog {
                 countsUsage: false,
                 run: { _ in copyAnswer(result.formatted) })
         }
+        if let currency = CommandBarCurrencyRates.shared.answer(for: query) {
+            return CommandBarEntry(
+                id: "currency.result",
+                title: currency.title,
+                subtitle: currency.detail + (currency.copyable ? " · " + bar.copyHint : ""),
+                icon: .symbol("dollarsign.arrow.circlepath"),
+                isAnswer: true,
+                countsUsage: false,
+                run: { _ in if currency.copyable { copyAnswer(currency.title) } })
+        }
         if let converted = CommandBarUnits.convert(query) {
             return CommandBarEntry(
                 id: "units.result",

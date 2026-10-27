@@ -502,6 +502,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/CommandBar/CommandBarSupport.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarPreferences.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarMath.swift
+        Sources/Vorssaint/Services/CommandBar/CommandBarCurrency.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarUnits.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarColors.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarEmoji.swift

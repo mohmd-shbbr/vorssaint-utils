@@ -263,6 +263,7 @@ final class CommandBarService: ObservableObject {
         hotkey.onPress = { [weak self] in self?.toggle() }
         scriptRunner.onResult = { [weak self] in self?.refreshResults() }
         fileSearch.onResult = { [weak self] in self?.refreshResults() }
+        CommandBarCurrencyRates.shared.onResult = { [weak self] in self?.refreshResults() }
     }
 
     // MARK: - Lifecycle
