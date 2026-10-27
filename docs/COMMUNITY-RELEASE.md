@@ -1,4 +1,4 @@
-# NotchCraft 1.0.0-beta.1
+# NotchCraft 1.0.0-beta.2
 
 NotchCraft is an independent, unofficial fork of
 [Vorssaint](https://github.com/vorssaint/vorssaint-utils), licensed under
@@ -17,6 +17,15 @@ identity differ from official Vorssaint.
   this source, attempt to open the app, then use **System Settings → Privacy &
   Security → Open Anyway**. Do not disable Gatekeeper globally.
 - Grant only the macOS permissions needed for the features you enable.
+
+## Updated in beta.2
+
+- Command-bar currency conversion: `19 USD` defaults to INR; `19 USD to EUR`
+  uses an explicit target. Supports common currency names and symbols.
+- Daily exchange rates from Frankfurter, with rate dates and persistent offline
+  cache. Only currency codes are sent to the rate service, never amounts.
+- Verdana 10-point default for rich-text snippets. Existing personal snippets
+  are not bundled or automatically rewritten by this release.
 
 ## Added in this fork
 
