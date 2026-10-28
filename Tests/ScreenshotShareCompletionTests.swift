@@ -184,8 +184,12 @@ enum ScreenshotShareCompletionTests {
     final class ScreenshotEditorController {
         let capture: Int
         var shown = false
+        var showCount = 0
+        var canResumeAfterClose = false
+        // Document mutations stand in for the real controller's model and undo stack.
+        var documentHistory = [String]()
         init(capture: Int) { self.capture = capture }
-        func show() { shown = true }
+        func show() { shown = true; showCount += 1 }
     }
 
     enum WindowActivationPolicy {
@@ -215,6 +219,7 @@ enum ScreenshotShareCompletionTests {
         var latestCaptureWithheld = false
         var linkCopyRetry = ScreenshotLinkCopyRetry()
         var editors: [ScreenshotEditorController] = []
+        var lastEditedSession: ScreenshotEditorController?
         var preview: ScreenshotQuickPreviewController?
         var completion: (@MainActor (ScreenshotShareRecord?) -> Void)?
         var uploads = 0
@@ -573,6 +578,35 @@ enum ScreenshotShareCompletionTests {
         editing.uploadLastCapture()
         suite.expect(editing.uploads == 1 && editing.uploadedCaptures == [3] && NSSound.beeps == 3,
                      "a capture taken after those editors opened uploads once the last one closes")
+
+        let resumable = Uploader()
+        resumable.openEditor(with: 21)
+        let document = resumable.editors[0]
+        document.documentHistory = ["arrow", "crop", "undo crop"]
+        document.canResumeAfterClose = true
+        resumable.editorDidClose(document)
+        let retainedBeforeReopen = WindowActivationPolicy.retained
+        suite.expect(resumable.editors.isEmpty && resumable.lastEditedSession === document,
+                     "output closes the visible window but retains the editable document")
+        suite.expect(resumable.reopenLastEditor() && resumable.editors[0] === document
+                     && document.documentHistory == ["arrow", "crop", "undo crop"],
+                     "reopen reuses the same edited document and history instead of a fresh capture")
+        suite.expect(WindowActivationPolicy.retained == retainedBeforeReopen + 1,
+                     "reopened editor acquires one activation-policy claim")
+        suite.expect(resumable.reopenLastEditor() && resumable.editors.count == 1
+                     && WindowActivationPolicy.retained == retainedBeforeReopen + 1,
+                     "reopen while visible focuses existing editor without duplicate registration")
+        document.canResumeAfterClose = false
+        resumable.editorDidClose(document)
+        suite.expect(!resumable.reopenLastEditor() && resumable.lastEditedSession == nil,
+                     "explicit discard releases the session and cannot resurrect its edits")
+        resumable.openEditor(with: 22)
+        let replaced = resumable.editors[0]
+        replaced.canResumeAfterClose = true
+        resumable.editorDidClose(replaced)
+        resumable.beginLatestCapture(23)
+        suite.expect(resumable.lastEditedSession == nil && !resumable.reopenLastEditor(),
+                     "new capture drops the older retained document rather than opening stale edits")
 
         // What an editor exported is no longer the stored original, so that
         // original stays back after the editor closes, and so does a

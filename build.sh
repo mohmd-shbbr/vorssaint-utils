@@ -502,6 +502,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/CommandBar/CommandBarSupport.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarPreferences.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarMath.swift
+        Sources/Vorssaint/Services/Bitwarden/BitwardenSupport.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarCurrency.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarUnits.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarColors.swift
@@ -729,8 +730,8 @@ if (( DEV || COMMUNITY )); then
     echo "  stamped dev build: $SHA"
 fi
 if (( COMMUNITY )); then
-    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.0-beta.2" "$STAGE/Contents/Info.plist"
-    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion 2" "$STAGE/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.0-beta.3" "$STAGE/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion 3" "$STAGE/Contents/Info.plist"
     cp LICENSE "$STAGE/Contents/Resources/LICENSE"
     cp docs/COMMUNITY-RELEASE.md "$STAGE/Contents/Resources/COMMUNITY-RELEASE.md"
     # Preserve original copyright notices; replace display branding in macOS prompts.

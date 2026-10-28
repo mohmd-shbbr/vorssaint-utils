@@ -309,6 +309,24 @@ enum CommandBarCatalog {
             Permissions.shared.accessibility ? nil : .needsPermission
         }
 
+        entries.append(CommandBarEntry(
+            id: "action.bitwardenVault",
+            title: "Search Bitwarden Vault",
+            subtitle: "Search logins and securely copy passwords",
+            keywords: "bitwarden passwords vault login credentials bw",
+            icon: .symbol("lock.shield"),
+            run: { _ in afterBeat { BitwardenVault.shared.show() } }))
+
+        entries.append(CommandBarEntry(
+            id: "action.reopenScreenshotEditor",
+            title: "Reopen Last Screenshot Editor",
+            subtitle: "Continue editing with undo history preserved",
+            keywords: "screenshot edit last reopen undo annotation",
+            icon: .symbol("pencil.and.outline"),
+            run: { _ in afterBeat {
+                if !ScreenshotService.shared.reopenLastEditor() { NSSound.beep() }
+            } }))
+
         // Screen tools first: the beat lets the bar leave before capture.
         if AppFeature.screenshot.isAvailable {
             let screenshot = FeatureStrings.screenshot(language)

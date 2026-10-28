@@ -326,6 +326,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
+        BitwardenVault.shared.shutdown()
         WorldClockMenuBarService.shared.stop()
         UpcomingMeetingMenuBarService.shared.stop()
         CommandBarService.shared.restoreBorrowedInputSource()

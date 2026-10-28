@@ -46,6 +46,8 @@ final class ScreenshotQuickPreviewController {
     private let model = ScreenshotQuickPreviewModel()
     private var panel: ScreenshotQuickPreviewPanel?
     private var keyMonitor: Any?
+    private var externalDismissMonitors: [Any] = []
+    private var externalActivationObserver: NSObjectProtocol?
     private var dismissWork: DispatchWorkItem?
     private let baseDismissDuration: TimeInterval?
     private var autoDismissDuration: TimeInterval?
@@ -169,6 +171,7 @@ final class ScreenshotQuickPreviewController {
             didStartPreview = true
             scanForQR()
         }
+        installExternalDismissMonitors()
         scheduleAutoDismiss()
     }
 
@@ -242,6 +245,7 @@ final class ScreenshotQuickPreviewController {
         closed = true
         dismissWork?.cancel()
         dismissWork = nil
+        removeExternalDismissMonitors()
         if let keyMonitor {
             NSEvent.removeMonitor(keyMonitor)
             self.keyMonitor = nil
@@ -447,6 +451,61 @@ final class ScreenshotQuickPreviewController {
         let work = DispatchWorkItem { [weak self] in self?.close() }
         dismissWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + dismissDuration, execute: work)
+    }
+
+    /// The preview is temporary UI, not an editor. Continuing work in another
+    /// app dismisses it immediately; Escape also works after focus has moved.
+    /// Neither path discards a capture or takes a key away from the other app.
+    private func dismissAfterExternalInteraction() {
+        guard !closed, !systemSharing, !model.sharing, !model.deletingShare,
+              let window = shownInNotch ? NotchService.shared.presentationWindow : panel,
+              window.isVisible, window.attachedSheet == nil,
+              !shownInNotch || NotchService.shared.isCaptureVisible(id: presentationID)
+        else { return }
+        close()
+    }
+
+    private func installExternalDismissMonitors() {
+        removeExternalDismissMonitors()
+        let clicks: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        if let monitor = NSEvent.addGlobalMonitorForEvents(matching: clicks.union(.keyDown), handler: { [weak self] event in
+            guard let self else { return }
+            if event.type == .keyDown {
+                guard event.keyCode == kVK_Escape, !ShortcutCapture.isCapturing,
+                      event.modifierFlags.isDisjoint(with: [.command, .option, .control, .shift]) else { return }
+            }
+            self.dismissAfterExternalInteraction()
+        }) { externalDismissMonitors.append(monitor) }
+        if let monitor = NSEvent.addLocalMonitorForEvents(matching: clicks.union(.keyDown), handler: { [weak self] event in
+            guard let self, let window = self.shownInNotch ? NotchService.shared.presentationWindow : self.panel else { return event }
+            // A child/popover or attached sheet belongs to the preview, too.
+            let belongsToPreview = event.window.map { eventWindow in
+                sequence(first: eventWindow, next: { $0.parent ?? $0.sheetParent }).contains { $0 === window }
+            } ?? false
+            guard !belongsToPreview else { return event }
+            if event.type == .keyDown {
+                guard event.keyCode == kVK_Escape, !ShortcutCapture.isCapturing,
+                      event.modifierFlags.isDisjoint(with: [.command, .option, .control, .shift]) else { return event }
+            }
+            self.dismissAfterExternalInteraction()
+            return event
+        }) { externalDismissMonitors.append(monitor) }
+        externalActivationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] notification in
+                guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                      app.bundleIdentifier != Bundle.main.bundleIdentifier,
+                      app.bundleIdentifier != AssistiveKeyboard.bundleID else { return }
+                self?.dismissAfterExternalInteraction()
+            }
+    }
+
+    private func removeExternalDismissMonitors() {
+        externalDismissMonitors.forEach(NSEvent.removeMonitor)
+        externalDismissMonitors.removeAll()
+        if let externalActivationObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(externalActivationObserver)
+            self.externalActivationObserver = nil
+        }
     }
 
     private func installKeyMonitor(for panel: NSPanel) {

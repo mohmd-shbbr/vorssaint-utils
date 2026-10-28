@@ -54,6 +54,7 @@ enum ScreenshotClipboardTests {
         let model = Model()
         let strings = ScreenshotFeatureStrings.enUS
         var window: Window? = Window()
+        var canResumeAfterClose = false
     }
 
     static func run(_ suite: TestSuite) {
@@ -130,7 +131,7 @@ enum ScreenshotClipboardTests {
                 let filesBefore = try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted()
                 editor.copyToClipboard()
                 suite.expect(editor.model.exports == 1 && editor.window?.closes == 1
-                    && pasteboard.contents.changeCount != oldCount,
+                    && editor.canResumeAfterClose && pasteboard.contents.changeCount != oldCount,
                              "copying an edited image publishes it before marking it exported and closing")
                 suite.expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted() == filesBefore,
                              "copying an edited image in image-only mode creates no cached file")
@@ -145,7 +146,7 @@ enum ScreenshotClipboardTests {
                 let beepsBefore = NSSound.beeps
                 failed.copyToClipboard()
                 suite.expect(failed.model.exports == 0 && failed.window?.closes == 0
-                    && QuickToolHUD.messages.count == messagesBefore && NSSound.beeps == beepsBefore + 1,
+                    && !failed.canResumeAfterClose && QuickToolHUD.messages.count == messagesBefore && NSSound.beeps == beepsBefore + 1,
                              "a rejected edited-image copy stays open without claiming success")
                 pasteboard.acceptsWrites = true
             }

@@ -1378,6 +1378,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     private var keyMonitor: Any?
     private var scrollMonitor: Any?
     private var pointerMonitor: Any?
+    /// Only successful output retains an editable session; explicit discard does not.
+    private(set) var canResumeAfterClose = false
 
     var protectedWindowIDs: Set<CGWindowID> {
         guard let window, window.isVisible, window.windowNumber > 0 else { return [] }
@@ -1393,6 +1395,12 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     }
 
     func show() {
+        if let window {
+            NSApp.activate(ignoringOtherApps: true)
+            window.deminiaturize(nil)
+            window.makeKeyAndOrderFront(nil)
+            return
+        }
         let screen = NSScreen.pointerVisibleFrame
         let minimumSize = ScreenshotSupport.editorMinimumContentSize(visibleSize: screen.size)
         // The hosting view rewrites the window's size limits on its first
@@ -1440,11 +1448,13 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     }
 
     func close() {
+        canResumeAfterClose = false
         window?.close()
     }
 
     /// Closes without the discard confirmation used by the titlebar button.
     func discardAndClose() {
+        canResumeAfterClose = false
         window?.close()
     }
 
@@ -1657,8 +1667,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
                                                      strings: strings)
     }
 
-    /// Every final output closes the editor: the capture leaves the app
-    /// and the window's job is done, so nothing lingers to tidy up.
+    /// Output closes the window while the service retains the most recent
+    /// editable model, including its undo/redo stacks, for Reopen Last Editor.
     func copyToClipboard() {
         guard let export = model.exportImage() else { return }
         guard Self.copyImage(export, fileNamePrefix: strings.fileNamePrefix) else {
@@ -1666,6 +1676,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             return
         }
         model.markExported()
+        canResumeAfterClose = true
         QuickToolHUD.show(icon: "camera.viewfinder", message: strings.copiedHUD)
         window?.close()
     }
@@ -1758,6 +1769,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             try data.write(to: url, options: .atomic)
             ScreenshotSupport.markAsScreenCapture(url)
             model.markExported()
+            canResumeAfterClose = true
             QuickToolHUD.show(icon: "camera.viewfinder",
                               message: String(format: strings.savedHUDFormat,
                                               url.deletingLastPathComponent().lastPathComponent))
@@ -1784,6 +1796,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             do {
                 try data.write(to: url, options: .atomic)
                 self.model.markExported()
+                self.canResumeAfterClose = true
                 self.window?.close()
             } catch {
                 NSSound.beep()
@@ -1803,6 +1816,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             return
         }
         model.markExported()
+        canResumeAfterClose = true
         QuickToolHUD.show(icon: "tray.full", message: L10n.shared.s.shelfName)
         window?.close()
     }
@@ -1842,7 +1856,9 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         alert.addButton(withTitle: strings.discardConfirm)
         alert.addButton(withTitle: strings.cancel)
         alert.alertStyle = .warning
-        return alert.runModal() == .alertFirstButtonReturn
+        let discard = alert.runModal() == .alertFirstButtonReturn
+        if discard { canResumeAfterClose = false }
+        return discard
     }
 
     func windowWillClose(_ notification: Notification) {

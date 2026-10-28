@@ -5,6 +5,9 @@ import AppKit
 import SwiftUI
 
 struct CommandBarSettings: View {
+    @ObservedObject private var bitwarden = BitwardenVault.shared
+    @AppStorage(BitwardenVault.shortcutEnabledKey) private var bitwardenShortcutEnabled = true
+    @AppStorage(BitwardenVault.shortcutKey) private var bitwardenShortcut = ""
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = CommandBarService.shared
     @ObservedObject private var secureInput = SecureInputMonitor.shared
@@ -42,6 +45,23 @@ struct CommandBarSettings: View {
 
     var body: some View {
         Form {
+            Section("Bitwarden Vault") {
+                Button("Open Bitwarden search") { bitwarden.show() }
+                Toggle("Enable vault keyboard shortcut", isOn: $bitwardenShortcutEnabled)
+                    .onChange(of: bitwardenShortcutEnabled) { bitwarden.syncShortcut() }
+                ShortcutRecorderButton(
+                    shortcut: GlobalShortcut.saved(for: BitwardenVault.shortcutKey, fallback: BitwardenVault.defaultShortcut),
+                    isEnabled: bitwardenShortcutEnabled,
+                    waitingTitle: l10n.s.shortcutPressKeys,
+                    invalidAction: { bitwarden.shortcutFailed = true },
+                    captureAction: { shortcut in
+                        bitwardenShortcut = shortcut.storageValue
+                        bitwarden.syncShortcut()
+                    })
+                if bitwarden.shortcutFailed { Text("Shortcut is already in use. Choose another combination.").foregroundStyle(.orange) }
+                Text("Vault Timeout: Never. The session is saved in macOS Keychain and stays unlocked across window close, sleep, screen lock, and app restart until you choose Lock. The master password is not saved. Copied fields are concealed and expire after 30 seconds.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section {
                 // One choice, open it or recenter it, so one row. Neither
                 // carries an icon: a ⌘ glyph in front of "Open the bar now"

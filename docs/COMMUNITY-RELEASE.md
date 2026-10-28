@@ -1,4 +1,4 @@
-# NotchCraft 1.0.0-beta.2
+# NotchCraft 1.0.0-beta.3
 
 NotchCraft is an independent, unofficial fork of
 [Vorssaint](https://github.com/vorssaint/vorssaint-utils), licensed under
@@ -17,6 +17,34 @@ identity differ from official Vorssaint.
   this source, attempt to open the app, then use **System Settings → Privacy &
   Security → Open Anyway**. Do not disable Gatekeeper globally.
 - Grant only the macOS permissions needed for the features you enable.
+
+## Updated in beta.3
+
+- Bitwarden login and secure-note search, with a direct Control-Option-B
+  shortcut configurable in Command Bar settings. Requires the official
+  Bitwarden CLI; detects an existing Raycast-managed CLI when available.
+- Separate Bitwarden sign-in profile. Unlock sessions are saved in macOS
+  Keychain with Vault Timeout: Never, including sleep and app restarts.
+  The master password is not saved. Use Lock to revoke the session.
+- Protected items retain master-password re-prompt checks. Copies close the
+  search window, are concealed from clipboard history, and expire after
+  30 seconds unless replaced by another copy.
+- Secure notes show both note text and custom fields. Failed retrieval no
+  longer clears the search results.
+- Screenshot previews dismiss on click-away, app switching, or Escape after
+  focus moves elsewhere, while preserving active sharing and sheets.
+- Reopen Last Screenshot Editor keeps annotations and undo/redo after
+  Copy, Save or Shelf output. The retained session lasts until explicit
+  discard, a newer capture, feature teardown or app exit; it is not written
+  to disk. The existing Last Capture shortcut also resumes that session,
+  or opens an unedited capture in edit mode. Its default binding is now
+  Option-S; enable the shortcut in Screenshot settings if it is off.
+
+Bitwarden first use: open its search window, sign in through the Terminal
+button, then unlock. TOTP retrieval requires an eligible Bitwarden plan.
+Vault data, session keys and CLI profiles are not included in settings exports
+or this release. A Raycast-managed CLI remains an external dependency; choose
+an independently installed CLI before removing Raycast's extension files.
 
 ## Updated in beta.2
 

@@ -261,6 +261,7 @@ final class CommandBarService: ObservableObject {
     private init() {
         queryHabitStore.reload(UserDefaults.standard.string(forKey: DefaultsKey.commandBarQueryHabits))
         hotkey.onPress = { [weak self] in self?.toggle() }
+        BitwardenVault.shared.syncShortcut()
         scriptRunner.onResult = { [weak self] in self?.refreshResults() }
         fileSearch.onResult = { [weak self] in self?.refreshResults() }
         CommandBarCurrencyRates.shared.onResult = { [weak self] in self?.refreshResults() }
@@ -269,6 +270,7 @@ final class CommandBarService: ObservableObject {
     // MARK: - Lifecycle
 
     func syncWithPreferences() {
+        BitwardenVault.shared.syncShortcut()
         let available = AppFeature.commandBar.isAvailable
         let enabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.commandBarShortcutEnabled)

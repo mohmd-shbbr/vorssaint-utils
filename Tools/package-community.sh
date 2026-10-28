@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 APP="build/stage/NotchCraft.app"
-VERSION="1.0.0-beta.2"
+VERSION="1.0.0-beta.3"
 [[ -d "$APP" ]] || { echo 'Run ./build.sh --community first' >&2; exit 1; }
 [[ -z "$(git status --porcelain)" ]] || { echo 'Refusing to package a dirty source tree' >&2; exit 1; }
 SOURCE_SHA="$(git rev-parse --short HEAD)"

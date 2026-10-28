@@ -3758,8 +3758,8 @@ enum ScreenshotFeatureTests {
                 as? Bool == false,
                "the latest screenshot editor shortcut ships off")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotLastCaptureShortcut] as? String
-                == "control+option+command:14",
-               "the latest screenshot editor shortcut defaults to control option command E")
+                == "option:1",
+               "the latest screenshot editor shortcut defaults to Option S")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.recentCapturesShortcutEnabled]
                 as? Bool == false,
                "the recent captures shortcut ships off")

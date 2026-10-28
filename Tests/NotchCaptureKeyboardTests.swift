@@ -13,6 +13,10 @@ enum NotchCaptureKeyboardContract {
         var firstResponder: Any?
     }
     final class NSText {}
+    final class DismissalModel {
+        var sharing = false
+        var deletingShare = false
+    }
     final class ScreenshotOverlayPanel: NSPanel {
         var overlayView = Overlay()
         let screenFrame = CGRect(x: 0, y: 0, width: 100, height: 100)
@@ -61,6 +65,7 @@ enum NotchCaptureKeyboardTests {
             Contract.NotchService.shared = Contract.NotchService()
         }
         preview(suite)
+        externalDismissal(suite)
         chooser(suite)
     }
 
@@ -150,6 +155,47 @@ enum NotchCaptureKeyboardTests {
                              "Command W follows French and Latin letters, falls back for non-Latin input, and excludes extra modifiers")
             }
         }
+    }
+
+    private static func externalDismissal(_ suite: TestSuite) {
+        let notch = Contract.NotchService()
+        Contract.NotchService.shared = notch
+        let preview = Contract.Preview()
+        notch.captureID = preview.presentationID
+        preview.dismissAfterExternalInteraction()
+        suite.expect(preview.closed && preview.actions.isEmpty,
+                     "continuing work outside the visible notch preview dismisses without discarding")
+        for busy in 0..<4 {
+            preview.closed = false
+            preview.systemSharing = busy == 0
+            preview.model.sharing = busy == 1
+            preview.model.deletingShare = busy == 2
+            notch.presentationWindow?.attachedSheet = busy == 3 ? Contract.NSPanel() : nil
+            preview.dismissAfterExternalInteraction()
+            suite.expect(!preview.closed, "external activity cannot interrupt sharing, deleting a share, or a sheet")
+        }
+        preview.systemSharing = false
+        preview.model.sharing = false
+        preview.model.deletingShare = false
+        notch.presentationWindow?.attachedSheet = nil
+        notch.selected = .tools
+        preview.dismissAfterExternalInteraction()
+        suite.expect(!preview.closed, "an old hidden preview cannot close a different notch page")
+        notch.selected = .captures
+        notch.captureID = UUID()
+        preview.dismissAfterExternalInteraction()
+        suite.expect(!preview.closed, "replaced captures ignore delayed external callbacks")
+        notch.captureID = preview.presentationID
+        preview.shownInNotch = false
+        let floating = Contract.NSPanel()
+        preview.panel = floating
+        floating.isVisible = false
+        preview.dismissAfterExternalInteraction()
+        suite.expect(!preview.closed, "a hidden floating preview ignores external callbacks")
+        floating.isVisible = true
+        preview.dismissAfterExternalInteraction()
+        suite.expect(preview.closed && preview.actions.isEmpty,
+                     "a visible floating preview also dismisses without destructive actions")
     }
 
     private static func chooser(_ suite: TestSuite) {

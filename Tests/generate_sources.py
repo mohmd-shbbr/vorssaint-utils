@@ -1747,7 +1747,7 @@ def main():
                     .replace("uploadShortcutEnabled()", "uploadShortcutEnabled(in: defaults)")
                     .replace("retainsLatestCapture()", "retainsLatestCapture(in: defaults)")
                     for prefix in ["    private func uploadLastCapture()", "    private func copyUploadedLink(",
-                                   "    func openEditor(with", "    func editorDidClose(",
+                                   "    func openEditor(with", "    func editorDidClose(", "    func reopenLastEditor()",
                                    "    private func invalidateLatestCaptureUploads()",
                                    "    private func beginLatestCapture(", "    private func discardLatestCapture(",
                                    "    private func withholdLatestCapture()", "    private func syncLatestCapture(",
@@ -1837,9 +1837,11 @@ def main():
           + "}\nfinal class Preview {\n"
           + declaration(preview, "    enum Action {")
           + "var keyMonitor: Any?\nvar closed = false\nvar shownInNotch = true\nlet presentationID = UUID()\n"
+          + "var panel: NSPanel?\nvar systemSharing = false\nlet model = DismissalModel()\n"
           + "var actions: [Action] = []\nfunc perform(_ action: Action) { actions.append(action) }\n"
           + "func close() { closed = true }\nfunc attach(_ panel: NSPanel) { installKeyMonitor(for: panel) }\n"
           + declaration(preview, "    private func installKeyMonitor(for panel:")
+          + declaration(preview, "    private func dismissAfterExternalInteraction()").replace("private func", "func", 1)
           + "}\nfinal class Selection {\n"
           + "final class Options { var controlsInNotch = true; var hasFocusedControl = false }\n"
           + "enum Outcome { case cancelled }\nvar screenCaptureOptions: Options? = Options()\n"

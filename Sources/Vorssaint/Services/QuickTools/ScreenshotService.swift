@@ -36,6 +36,9 @@ final class ScreenshotService: ObservableObject {
     private var session: ScreenshotSelectionController?
     private var preview: ScreenshotQuickPreviewController?
     private var editors: [ScreenshotEditorController] = []
+    /// A single in-memory document, not a flattened export or persisted vault of images.
+    private var lastEditedSession: ScreenshotEditorController?
+    var hasLastEditorSession: Bool { lastEditedSession != nil }
     private var countdown: DispatchWorkItem?
     private var countdownRemaining = 0
     private var countdownMode: CaptureMode = .standard
@@ -210,6 +213,7 @@ final class ScreenshotService: ObservableObject {
             editor.close()
         }
         editors.removeAll()
+        lastEditedSession = nil
         ScreenshotPinController.shared.closeAll()
     }
 
@@ -520,6 +524,7 @@ final class ScreenshotService: ObservableObject {
     /// one before loses its claim, and the new one is kept, untouched so far,
     /// for the shortcuts that reopen or upload it.
     private func beginLatestCapture(_ capture: ScreenshotSelectionController.Capture) {
+        lastEditedSession = nil
         invalidateLatestCaptureUploads()
         latestCaptureToken = UUID()
         latestCaptureWithheld = false
@@ -639,6 +644,7 @@ final class ScreenshotService: ObservableObject {
         // original back until a newer capture arrives.
         withholdLatestCapture()
         let editor = ScreenshotEditorController(capture: capture)
+        lastEditedSession = editor
         editors.append(editor)
         editor.show()
     }
@@ -706,7 +712,23 @@ final class ScreenshotService: ObservableObject {
             ? strings.sharedHUD : strings.linkCopyFailedHUD)
     }
 
+    /// Reopens the original editable document after Copy/Save, preserving undo.
+    /// Also focuses an already-open editor without making another window.
+    @discardableResult
+    func reopenLastEditor() -> Bool {
+        guard AppFeature.screenshot.isAvailable, let editor = lastEditedSession else { return false }
+        preview?.close()
+        preview = nil
+        if !editors.contains(where: { $0 === editor }) {
+            WindowActivationPolicy.retain()
+            editors.append(editor)
+        }
+        editor.show()
+        return true
+    }
+
     private func openLastCapture() {
+        if reopenLastEditor() { return }
         guard let capture = ScreenshotLastCaptureStore.load() else {
             QuickToolHUD.show(icon: "camera.viewfinder", message: strings.lastCaptureMissing)
             return
@@ -798,6 +820,9 @@ final class ScreenshotService: ObservableObject {
     func editorDidClose(_ editor: ScreenshotEditorController) {
         guard editors.contains(where: { $0 === editor }) else { return }
         editors.removeAll { $0 === editor }
+        if lastEditedSession === editor && !editor.canResumeAfterClose {
+            lastEditedSession = nil
+        }
         WindowActivationPolicy.release()
     }
 

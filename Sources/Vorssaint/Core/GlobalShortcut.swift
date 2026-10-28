@@ -205,9 +205,9 @@ struct GlobalShortcut: Equatable, Hashable {
                                                             modifiers: [.control, .option, .command])
     static let screenshotUploadDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_U),
                                                         modifiers: [.control, .option, .command])
-    // E opens the latest capture in the editor, beside the capture shortcut.
-    static let screenshotLastCaptureDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_E),
-                                                             modifiers: [.control, .option, .command])
+    // Option-S reopens the latest screenshot, retaining its editing session.
+    static let screenshotLastCaptureDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_S),
+                                                             modifiers: [.option])
     // H opens capture history, on the same free control-option-command layer.
     static let recentCapturesDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_H),
                                                       modifiers: [.control, .option, .command])
