@@ -15,8 +15,50 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  validate:
+  check:
     if: github.repository == 'mohmd-shbbr/vorssaint-utils'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      needed: ${{ steps.check.outputs.needed }}
+      base: ${{ steps.check.outputs.base }}
+      tag: ${{ steps.check.outputs.tag }}
+      stable: ${{ steps.check.outputs.stable }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/rich-snippets-and-arguments
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check whether an upstream update can be validated
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "needed=false" >> "$GITHUB_OUTPUT"
+          echo "base=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          tag=$(gh api repos/vorssaint/vorssaint-utils/releases/latest --jq .tag_name)
+          [[ "$tag" =~ ^v[0-9][0-9A-Za-z.+-]*$ ]] || { echo 'Unexpected upstream tag'; exit 1; }
+          git fetch https://github.com/vorssaint/vorssaint-utils.git "refs/tags/$tag:refs/remotes/upstream/stable"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "stable=$(git rev-parse refs/remotes/upstream/stable^{commit})" >> "$GITHUB_OUTPUT"
+          if git merge-base --is-ancestor refs/remotes/upstream/stable HEAD; then
+            echo "Already includes $tag. No Mac runner or branch update needed." >> "$GITHUB_STEP_SUMMARY"
+          elif git merge-tree --write-tree HEAD refs/remotes/upstream/stable > "$RUNNER_TEMP/upstream-merge.txt"; then
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+            echo "$tag merges cleanly; requesting macOS validation." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo '::notice::Upstream needs a manual merge. No validation or publishing was attempted.'
+            echo "### Manual merge needed: $tag" >> "$GITHUB_STEP_SUMMARY"
+            echo 'Upstream conflicts with the custom fork. Daily checks remain informational; the fork and installed app are unchanged.' >> "$GITHUB_STEP_SUMMARY"
+            cat "$RUNNER_TEMP/upstream-merge.txt" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  validate:
+    needs: check
+    if: needs.check.outputs.needed == 'true'
     runs-on: macos-26
     timeout-minutes: 60
     outputs:
@@ -26,20 +68,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: feature/rich-snippets-and-arguments
+          ref: ${{ needs.check.outputs.base }}
           fetch-depth: 0
           persist-credentials: false
       - name: Merge latest stable upstream release
         id: merge
         env:
-          GH_TOKEN: ${{ github.token }}
+          UPSTREAM_TAG: ${{ needs.check.outputs.tag }}
+          UPSTREAM_SHA: ${{ needs.check.outputs.stable }}
         shell: bash
         run: |
           set -euo pipefail
           base=$(git rev-parse HEAD)
-          tag=$(gh api repos/vorssaint/vorssaint-utils/releases/latest --jq .tag_name)
+          tag="$UPSTREAM_TAG"
           [[ "$tag" =~ ^v[0-9][0-9A-Za-z.+-]*$ ]] || { echo 'Unexpected upstream tag'; exit 1; }
           git fetch https://github.com/vorssaint/vorssaint-utils.git "refs/tags/$tag:refs/remotes/upstream/stable"
+          test "$(git rev-parse refs/remotes/upstream/stable^{commit})" = "$UPSTREAM_SHA"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           changed=false
